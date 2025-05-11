@@ -73,4 +73,4 @@ yarn-error.log
 !.yarn/sdks
 !.yarn/versions
 
-google-services.json
+app/google-services.json

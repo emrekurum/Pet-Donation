@@ -14,15 +14,11 @@ import {
   Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { auth, db, storage } from '../api/firebase'; // storage import edildi
-// Firebase Web SDK importları kaldırıldı. @react-native-firebase/firestore metodları db üzerinden kullanılır.
+import { auth, db, storage } from '../api/firebase';
+// Firebase Web SDK importları kaldırıldı.
 // import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-// import { updateProfile } from 'firebase/auth'; // Bu da auth instance'ı üzerinden yapılır.
-import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore'; // serverTimestamp için
-
-// import ImagePicker from 'react-native-image-picker'; // Bu kütüphane için kurulum gerekir.
-// Firebase Storage için:
-// import { ref, uploadBytesResumable, getDownloadURL } from '@react-native-firebase/storage'; // @react-native-firebase/storage'dan
+// import { updateProfile } from 'firebase/auth';
+import firestore from '@react-native-firebase/firestore'; // serverTimestamp için doğrudan firestore importu
 
 import { MainStackParamList } from '../navigation/AppNavigator';
 
@@ -33,7 +29,7 @@ interface ProfileData {
   age: string;
   location: string;
   bio: string;
-  profileImageUrl: string; // Bu, Firebase Storage'daki URL olacak
+  profileImageUrl: string;
 }
 
 const EditProfileScreen = ({ navigation }: Props) => {
@@ -46,9 +42,6 @@ const EditProfileScreen = ({ navigation }: Props) => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // const [imageUri, setImageUri] = useState<string | null>(null); // Seçilen resmin URI'si
-  // const [uploading, setUploading] = useState(false);
-  // const [transferred, setTransferred] = useState(0);
 
   const currentUser = auth.currentUser;
 
@@ -68,7 +61,6 @@ const EditProfileScreen = ({ navigation }: Props) => {
               bio: data?.bio || '',
               profileImageUrl: data?.profileImageUrl || currentUser.photoURL || '',
             });
-            // setImageUri(data?.profileImageUrl || currentUser.photoURL || null);
           } else {
             setProfileData({
               displayName: currentUser.displayName || '',
@@ -77,7 +69,6 @@ const EditProfileScreen = ({ navigation }: Props) => {
               bio: '',
               profileImageUrl: currentUser.photoURL || '',
             });
-            // setImageUri(currentUser.photoURL || null);
           }
         } catch (error) {
           console.error("Profil bilgileri alınırken hata:", error);
@@ -96,44 +87,6 @@ const EditProfileScreen = ({ navigation }: Props) => {
     setProfileData(prev => ({ ...prev, [name]: value }));
   };
 
-  // const selectImage = () => {
-  //   // ImagePicker.launchImageLibrary({ mediaType: 'photo', quality: 0.5 }, (response) => {
-  //   //   if (response.didCancel) { console.log('User cancelled image picker'); return; }
-  //   //   if (response.errorCode) { console.log('ImagePicker Error: ', response.errorMessage); return; }
-  //   //   if (response.assets && response.assets[0].uri) {
-  //   //     setImageUri(response.assets[0].uri);
-  //   //     handleInputChange('profileImageUrl', response.assets[0].uri); // Geçici olarak URI'yi göster
-  //   //   }
-  //   // });
-  //   Alert.alert("Bilgi", "Resim yükleme özelliği yakında! Şimdilik URL girebilirsiniz.");
-  // };
-
-  // const uploadImage = async (uri: string) => {
-  //   if (!currentUser) return null;
-  //   const filename = uri.substring(uri.lastIndexOf('/') + 1);
-  //   const uploadUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
-  //   setUploading(true);
-  //   setTransferred(0);
-  //   const storageRef = storage().ref(`profile_images/${currentUser.uid}/${filename}`);
-  //   const task = storageRef.putFile(uploadUri);
-  //   task.on('state_changed', taskSnapshot => {
-  //     setTransferred(
-  //       Math.round(taskSnapshot.bytesTransferred / taskSnapshot.totalBytes) * 100
-  //     );
-  //   });
-  //   try {
-  //     await task;
-  //     const url = await storageRef.getDownloadURL();
-  //     setUploading(false);
-  //     return url;
-  //   } catch (e) {
-  //     console.error(e);
-  //     setUploading(false);
-  //     return null;
-  //   }
-  // };
-
-
   const handleSaveProfile = async () => {
     if (!currentUser) return;
     if (!profileData.displayName.trim()) {
@@ -143,42 +96,30 @@ const EditProfileScreen = ({ navigation }: Props) => {
 
     setSaving(true);
     try {
-      let finalProfileImageUrl = profileData.profileImageUrl; // Doğrudan URL girildiğini varsayıyoruz
+      let finalProfileImageUrl = profileData.profileImageUrl;
+      // TODO: Resim yükleme mantığı (react-native-image-picker ve Firebase Storage ile)
 
-      // if (imageUri && imageUri !== (currentUser.photoURL || profileData.profileImageUrl)) {
-      //   const uploadedUrl = await uploadImage(imageUri);
-      //   if (uploadedUrl) {
-      //     finalProfileImageUrl = uploadedUrl;
-      //   } else {
-      //     Alert.alert("Hata", "Resim yüklenirken bir sorun oluştu.");
-      //     setSaving(false);
-      //     return;
-      //   }
-      // }
-
-
-      // Firebase Auth profilini güncelle
-      await currentUser.updateProfile({ // auth.updateProfile değil, currentUser.updateProfile
+      await currentUser.updateProfile({
         displayName: profileData.displayName.trim(),
         photoURL: finalProfileImageUrl || null,
       });
 
-      // Firestore'daki kullanıcı dokümanını güncelle
       const userDocRef = db.collection('users').doc(currentUser.uid);
-      await userDocRef.update({ // set yerine update, sadece belirtilen alanları günceller
+      await userDocRef.update({
         displayName: profileData.displayName.trim(),
         age: profileData.age ? parseInt(profileData.age, 10) : null,
         selectedCity: profileData.location.trim(),
         bio: profileData.bio.trim(),
         profileImageUrl: finalProfileImageUrl || null,
-        updatedAt: FirebaseFirestoreTypes.FieldValue.serverTimestamp(), // serverTimestamp kullanımı
+        // <<< DEĞİŞİKLİK BURADA: serverTimestamp() kullanımı
+        updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
       Alert.alert('Başarılı', 'Profiliniz güncellendi!');
       navigation.goBack();
     } catch (error: any) {
       console.error("Profil güncellenirken hata:", error.message, error.code);
-      Alert.alert('Hata', 'Profil güncellenirken bir sorun oluştu: ' + error.message);
+      Alert.alert('Hata', `Profil güncellenirken bir sorun oluştu: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -196,8 +137,7 @@ const EditProfileScreen = ({ navigation }: Props) => {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.container}>
           <Text style={styles.title}>Profili Düzenle</Text>
-
-          <TouchableOpacity onPress={() => Alert.alert("Bilgi", "Resim yükleme özelliği yakında!")} /*onPress={selectImage}*/>
+          <TouchableOpacity onPress={() => Alert.alert("Bilgi", "Resim yükleme özelliği yakında!")}>
             <Image
               source={profileData.profileImageUrl ? { uri: profileData.profileImageUrl } : require('../assets/default-avatar.png')}
               style={styles.avatar}
@@ -211,18 +151,10 @@ const EditProfileScreen = ({ navigation }: Props) => {
             onChangeText={(value) => handleInputChange('profileImageUrl', value)}
             placeholderTextColor="#888"
           />
-          {/* {uploading && (
-            <View>
-              <Text>{transferred}% uploaded!</Text>
-              <ActivityIndicator size="small" color="#0000ff" />
-            </View>
-          )} */}
-
           <TextInput style={styles.input} placeholder="Görünen Adınız" value={profileData.displayName} onChangeText={(value) => handleInputChange('displayName', value)} placeholderTextColor="#888" />
           <TextInput style={styles.input} placeholder="Yaşınız" value={profileData.age} onChangeText={(value) => handleInputChange('age', value)} keyboardType="number-pad" placeholderTextColor="#888" />
           <TextInput style={styles.input} placeholder="Yaşadığınız Şehir" value={profileData.location} onChangeText={(value) => handleInputChange('location', value)} autoCapitalize="words" placeholderTextColor="#888" />
           <TextInput style={[styles.input, styles.bioInput]} placeholder="Hakkınızda (Bio)" value={profileData.bio} onChangeText={(value) => handleInputChange('bio', value)} multiline numberOfLines={3} placeholderTextColor="#888" />
-
           {saving ? (
             <ActivityIndicator size="large" color="#007bff" style={{ marginTop: 20 }}/>
           ) : (
@@ -236,7 +168,7 @@ const EditProfileScreen = ({ navigation }: Props) => {
   );
 };
 
-const styles = StyleSheet.create({ /* ... (önceki stiller aynı kalır) ... */
+const styles = StyleSheet.create({
   scrollContainer: { flexGrow: 1, justifyContent: 'center', },
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#f8f9fa', },
   loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', },

@@ -2,13 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Image, ActivityIndicator,
-  Alert, TouchableOpacity, Modal, TextInput
-  // Picker importu react-native'den kaldırıldı.
+  Alert, TouchableOpacity, Modal, TextInput, Platform
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker'; // Doğru import yolu
+import { Picker } from '@react-native-picker/picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { auth, db } from '../api/firebase';
-import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+// FirebaseFirestoreTypes importunu doğrudan firestore instance'ından almak için değiştiriyoruz
+import firestore from '@react-native-firebase/firestore'; // Doğrudan firestore importu
 import { MainStackParamList } from '../navigation/AppNavigator';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'AnimalDetail'>;
@@ -42,14 +42,14 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
           setAnimal({ id: docSnapshot.id, ...docSnapshot.data() } as AnimalDetails);
         } else {
           Alert.alert("Hata", "Hayvan bulunamadı.");
-          navigation.goBack();
+          if (navigation.canGoBack()) navigation.goBack();
         }
         setLoading(false);
       }, (error) => {
         console.error("Hayvan detayı çekilirken hata: ", error);
         Alert.alert("Hata", "Hayvan detayları yüklenemedi.");
         setLoading(false);
-        navigation.goBack();
+        if (navigation.canGoBack()) navigation.goBack();
       });
     return () => unsubscribe();
   }, [animalId, navigation]);
@@ -60,8 +60,13 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
   };
 
   const handleDonationSubmit = async () => {
-    if (!currentUser || !animal) {
-      Alert.alert("Hata", "Bağış yapmak için giriş yapmış olmalı ve hayvan bilgileri yüklenmiş olmalıdır.");
+    if (!currentUser) {
+      Alert.alert("Hata", "Bağış yapmak için giriş yapmış olmalısınız.");
+      return;
+    }
+    if (!animal || !animal.id || !animal.shelterId) {
+      Alert.alert("Hata", "Hayvan bilgileri tam olarak yüklenemedi. Lütfen tekrar deneyin.");
+      setIsSubmittingDonation(false);
       return;
     }
     if (!donationData.type) {
@@ -83,24 +88,26 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
         userId: currentUser.uid,
         userName: currentUser.displayName || currentUser.email,
         animalId: animal.id,
-        animalName: animal.name,
+        animalName: animal.name || 'Bilinmiyor',
         shelterId: animal.shelterId,
-        shelterName: animal.shelterName,
+        shelterName: animal.shelterName || 'Bilinmiyor',
         donationType: donationData.type,
         amount: donationData.type === 'Nakit' ? parseFloat(donationData.amount!) : null,
         description: donationData.type === 'Diğer' ? donationData.description : (donationData.type === 'Nakit' ? `${donationData.amount} TL Nakit Bağış` : donationData.type + " Bağışı"),
-        donationDate: FirebaseFirestoreTypes.FieldValue.serverTimestamp(),
+        // <<< DEĞİŞİKLİK BURADA: serverTimestamp() kullanımı
+        donationDate: firestore.FieldValue.serverTimestamp(),
         status: 'Tamamlandı',
       });
-      Alert.alert("Teşekkürler!", `${animal.name} için bağışınız başarıyla kaydedildi.`);
+      Alert.alert("Teşekkürler!", `${animal.name || 'Dostumuz'} için bağışınız başarıyla kaydedildi.`);
       setModalVisible(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Bağış kaydedilirken hata:", error);
-      Alert.alert("Hata", "Bağışınız kaydedilirken bir sorun oluştu.");
+      Alert.alert("Hata", `Bağışınız kaydedilirken bir sorun oluştu: ${error.message}`);
     } finally {
       setIsSubmittingDonation(false);
     }
   };
+
 
   if (loading) {
     return <View style={styles.loaderContainer}><ActivityIndicator size="large" color="#007bff" /></View>;
@@ -127,7 +134,7 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
         <Text style={styles.sectionTitle}>Hakkında</Text>
         <Text style={styles.description}>{animal.description || 'Açıklama bulunmuyor.'}</Text>
         {animal.needs && animal.needs.length > 0 && (
-            <View style={styles.needsSection}><Text style={styles.sectionTitle}>İhtiyaçları</Text>
+            <View style={styles.needsSection}><Text style={styles.sectionTitle}>İhtiyaçları:</Text>
                 {animal.needs.map((need, index) => (<Text key={index} style={styles.needItem}>• {need}</Text>))}
             </View>
         )}
@@ -145,16 +152,20 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
         animationType="slide"
         transparent={true}
         visible={modalVisible}
-        onRequestClose={() => { setModalVisible(!modalVisible); }}
+        onRequestClose={() => {
+          if (!isSubmittingDonation) {
+            setModalVisible(!modalVisible);
+          }
+        }}
       >
         <View style={styles.centeredView}>
           <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>{animal.name} İçin Bağış Yap</Text>
+            <Text style={styles.modalTitle}>{(animal && animal.name) || 'Dostumuz'} İçin Bağış Yap</Text>
             <View style={styles.pickerContainer}>
                 <Text style={styles.modalLabel}>Bağış Türü:</Text>
                 <Picker
                     selectedValue={donationData.type}
-                    style={styles.picker} // Bu stilin tanımlı olduğundan emin olun
+                    style={styles.picker}
                     onValueChange={(itemValue) => setDonationData(prev => ({...prev, type: itemValue, amount: '', description: ''}))}
                 >
                     <Picker.Item label="Mama Bağışı" value="Mama" />
@@ -163,13 +174,13 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
                     <Picker.Item label="Diğer (Oyuncak, Malzeme vb.)" value="Diğer" />
                 </Picker>
             </View>
-            {donationData.type === 'Nakit' && ( /* ... (önceki gibi) ... */
+            {donationData.type === 'Nakit' && (
               <View style={styles.inputGroup}>
                 <Text style={styles.modalLabel}>Miktar (TL):</Text>
                 <TextInput style={styles.modalInput} placeholder="Örn: 50" keyboardType="numeric" value={donationData.amount} onChangeText={(text) => setDonationData(prev => ({...prev, amount: text}))} />
               </View>
             )}
-            {donationData.type === 'Diğer' && ( /* ... (önceki gibi) ... */
+            {donationData.type === 'Diğer' && (
               <View style={styles.inputGroup}>
                 <Text style={styles.modalLabel}>Bağış Açıklaması:</Text>
                 <TextInput style={[styles.modalInput, styles.modalTextarea]} placeholder="Örn: 1 adet Kedi Oyuncağı" multiline numberOfLines={3} value={donationData.description} onChangeText={(text) => setDonationData(prev => ({...prev, description: text}))} />
@@ -213,18 +224,18 @@ const styles = StyleSheet.create({
   virtualAdoptButton: { backgroundColor: '#ffc107' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   centeredView: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", },
-  modalView: { margin: 20, backgroundColor: "white", borderRadius: 20, padding: 35, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5, width: '90%', },
+  modalView: { margin: 20, backgroundColor: "white", borderRadius: 20, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5, width: '90%', },
   modalTitle: { marginBottom: 20, textAlign: "center", fontSize: 20, fontWeight: "bold" },
   pickerContainer: { width: '100%', marginBottom: 15, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, },
-  picker: { width: '100%', height: 50, /* iOS'ta height düzgün çalışmayabilir, sarmalayıcıya stil verin */ },
+  picker: { width: '100%', height: Platform.OS === 'ios' ? 180 : 50, },
   inputGroup: { width: '100%', marginBottom: 15, },
-  modalLabel: { fontSize: 16, marginBottom: 5, color: '#333', },
+  modalLabel: { fontSize: 16, marginBottom: 5, color: '#333', alignSelf: 'flex-start' },
   modalInput: { width: '100%', height: 50, borderColor: '#ddd', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, fontSize: 16, backgroundColor: '#fff', },
   modalTextarea: { height: 80, textAlignVertical: 'top', },
   modalButtonContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 20, },
-  modalButton: { borderRadius: 10, paddingVertical: 12, paddingHorizontal: 25, elevation: 2 },
-  modalButtonClose: { backgroundColor: "#f44336", },
-  modalButtonSubmit: { backgroundColor: "#2196F3", },
+  modalButton: { borderRadius: 10, paddingVertical: 12, paddingHorizontal: 25, elevation: 2, minWidth: 100, alignItems: 'center' },
+  modalButtonClose: { backgroundColor: "#7f8c8d", },
+  modalButtonSubmit: { backgroundColor: "#27ae60", },
   modalButtonText: { color: "white", fontWeight: "bold", textAlign: "center" }
 });
 

@@ -7,8 +7,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { auth, db } from '../api/firebase';
-// FirebaseFirestoreTypes importunu doğrudan firestore instance'ından almak için değiştiriyoruz
-import firestore from '@react-native-firebase/firestore'; // Doğrudan firestore importu
+import firestore from '@react-native-firebase/firestore'; // serverTimestamp için
 import { MainStackParamList } from '../navigation/AppNavigator';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'AnimalDetail'>;
@@ -17,6 +16,7 @@ interface AnimalDetails {
   id: string; name?: string; type?: string; breed?: string; age?: number;
   imageUrl?: string; description?: string; shelterId?: string; shelterName?: string;
   needs?: string[];
+  virtualAdoptersCount?: number; // Sanal sahiplenen kişi sayısı
 }
 
 interface DonationData {
@@ -32,27 +32,56 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [donationData, setDonationData] = useState<DonationData>({ type: 'Mama', amount: '', description: '' });
   const [isSubmittingDonation, setIsSubmittingDonation] = useState(false);
+  const [isAdoptingVirtually, setIsAdoptingVirtually] = useState(false);
+  const [hasAlreadyAdopted, setHasAlreadyAdopted] = useState(false);
   const currentUser = auth.currentUser;
 
   useEffect(() => {
-    setLoading(true);
-    const unsubscribe = db.collection('animals').doc(animalId)
-      .onSnapshot(docSnapshot => {
-        if (docSnapshot.exists) {
-          setAnimal({ id: docSnapshot.id, ...docSnapshot.data() } as AnimalDetails);
-        } else {
-          Alert.alert("Hata", "Hayvan bulunamadı.");
-          if (navigation.canGoBack()) navigation.goBack();
-        }
+    if (!currentUser || !animalId) {
         setLoading(false);
-      }, (error) => {
-        console.error("Hayvan detayı çekilirken hata: ", error);
-        Alert.alert("Hata", "Hayvan detayları yüklenemedi.");
-        setLoading(false);
+        Alert.alert("Hata", "Kullanıcı veya hayvan bilgisi bulunamadı.");
         if (navigation.canGoBack()) navigation.goBack();
-      });
-    return () => unsubscribe();
-  }, [animalId, navigation]);
+        return;
+    }
+    setLoading(true);
+    const animalDocRef = db.collection('animals').doc(animalId);
+
+    const unsubscribeAnimal = animalDocRef.onSnapshot(docSnapshot => {
+      if (docSnapshot.exists) {
+        setAnimal({ id: docSnapshot.id, ...docSnapshot.data() } as AnimalDetails);
+      } else {
+        Alert.alert("Hata", "Hayvan bulunamadı.");
+        if (navigation.canGoBack()) navigation.goBack();
+      }
+      // setLoading(false); // Bu satırı checkAdoptionStatus sonrasına taşıyalım
+    }, (error) => {
+      console.error("Hayvan detayı çekilirken hata: ", error);
+      Alert.alert("Hata", "Hayvan detayları yüklenemedi.");
+      setLoading(false);
+      if (navigation.canGoBack()) navigation.goBack();
+    });
+
+    const checkAdoptionStatus = async () => {
+        try {
+            const adoptionQuery = db.collection('virtualAdoptions')
+                                    .where('userId', '==', currentUser.uid)
+                                    .where('animalId', '==', animalId)
+                                    .limit(1);
+            const adoptionSnapshot = await adoptionQuery.get();
+            setHasAlreadyAdopted(!adoptionSnapshot.empty);
+        } catch (error) {
+            console.error("Sahiplenme durumu kontrol edilirken hata:", error);
+            // Hata durumunda varsayılan olarak sahiplenmemiş kabul edilebilir
+            setHasAlreadyAdopted(false);
+        } finally {
+            setLoading(false); // Tüm yüklemeler bittiğinde
+        }
+    };
+
+    checkAdoptionStatus();
+
+    return () => unsubscribeAnimal();
+  }, [animalId, navigation, currentUser]);
 
   const handleOpenDonationModal = () => {
     setDonationData({ type: 'Mama', amount: '', description: '' });
@@ -60,54 +89,69 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
   };
 
   const handleDonationSubmit = async () => {
-    if (!currentUser) {
-      Alert.alert("Hata", "Bağış yapmak için giriş yapmış olmalısınız.");
-      return;
-    }
-    if (!animal || !animal.id || !animal.shelterId) {
-      Alert.alert("Hata", "Hayvan bilgileri tam olarak yüklenemedi. Lütfen tekrar deneyin.");
-      setIsSubmittingDonation(false);
-      return;
-    }
-    if (!donationData.type) {
-        Alert.alert("Hata", "Lütfen bağış türünü seçin.");
-        return;
-    }
-    if (donationData.type === 'Nakit' && (!donationData.amount || isNaN(parseFloat(donationData.amount)) || parseFloat(donationData.amount) <= 0)) {
-        Alert.alert("Hata", "Nakit bağış için geçerli bir miktar girin.");
-        return;
-    }
-     if (donationData.type === 'Diğer' && !donationData.description?.trim()) {
-        Alert.alert("Hata", "Diğer bağış türü için lütfen bir açıklama girin.");
-        return;
-    }
-
+    if (!currentUser || !animal || !animal.id || !animal.shelterId) { Alert.alert("Hata", "Gerekli bilgiler yüklenemedi."); setIsSubmittingDonation(false); return; }
+    if (!donationData.type) { Alert.alert("Hata", "Lütfen bağış türünü seçin."); return; }
+    if (donationData.type === 'Nakit' && (!donationData.amount || isNaN(parseFloat(donationData.amount)) || parseFloat(donationData.amount) <= 0)) { Alert.alert("Hata", "Nakit bağış için geçerli bir miktar girin."); return;}
+    if (donationData.type === 'Diğer' && !donationData.description?.trim()) { Alert.alert("Hata", "Diğer bağış türü için lütfen bir açıklama girin."); return; }
     setIsSubmittingDonation(true);
     try {
       await db.collection('donations').add({
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email,
-        animalId: animal.id,
-        animalName: animal.name || 'Bilinmiyor',
-        shelterId: animal.shelterId,
-        shelterName: animal.shelterName || 'Bilinmiyor',
+        userId: currentUser.uid, userName: currentUser.displayName || currentUser.email,
+        animalId: animal.id, animalName: animal.name, shelterId: animal.shelterId, shelterName: animal.shelterName,
         donationType: donationData.type,
         amount: donationData.type === 'Nakit' ? parseFloat(donationData.amount!) : null,
         description: donationData.type === 'Diğer' ? donationData.description : (donationData.type === 'Nakit' ? `${donationData.amount} TL Nakit Bağış` : donationData.type + " Bağışı"),
-        // <<< DEĞİŞİKLİK BURADA: serverTimestamp() kullanımı
-        donationDate: firestore.FieldValue.serverTimestamp(),
-        status: 'Tamamlandı',
+        donationDate: firestore.FieldValue.serverTimestamp(), status: 'Tamamlandı',
       });
       Alert.alert("Teşekkürler!", `${animal.name || 'Dostumuz'} için bağışınız başarıyla kaydedildi.`);
       setModalVisible(false);
-    } catch (error: any) {
-      console.error("Bağış kaydedilirken hata:", error);
-      Alert.alert("Hata", `Bağışınız kaydedilirken bir sorun oluştu: ${error.message}`);
-    } finally {
-      setIsSubmittingDonation(false);
-    }
+    } catch (error: any) { console.error("Bağış kaydedilirken hata:", error); Alert.alert("Hata", `Bağışınız kaydedilirken bir sorun oluştu: ${error.message}`);
+    } finally { setIsSubmittingDonation(false); }
   };
 
+  const handleVirtualAdoption = async () => {
+    if (!currentUser || !animal || !animal.id || !animal.shelterId) {
+      Alert.alert("Hata", "Sanal sahiplenme için gerekli bilgiler yüklenemedi.");
+      return;
+    }
+    if (hasAlreadyAdopted) {
+        Alert.alert("Bilgi", "Bu sevimli dostu zaten sanal olarak sahiplendiniz!");
+        return;
+    }
+
+    setIsAdoptingVirtually(true);
+    try {
+      await db.collection('virtualAdoptions').add({
+        userId: currentUser.uid,
+        userDisplayName: currentUser.displayName || currentUser.email,
+        animalId: animal.id,
+        animalName: animal.name,
+        shelterId: animal.shelterId,
+        shelterName: animal.shelterName,
+        adoptionDate: firestore.FieldValue.serverTimestamp(),
+        status: 'active',
+      });
+
+      const animalRef = db.collection('animals').doc(animal.id);
+      await db.runTransaction(async (transaction) => {
+        const animalDoc = await transaction.get(animalRef);
+        if (!animalDoc.exists) {
+          throw "Hayvan dokümanı bulunamadı!";
+        }
+        const currentAdoptersCount = animalDoc.data()?.virtualAdoptersCount || 0;
+        transaction.update(animalRef, { virtualAdoptersCount: currentAdoptersCount + 1 });
+      });
+
+      setHasAlreadyAdopted(true);
+      Alert.alert("Teşekkürler!", `${animal.name || 'Dostumuzu'} sanal olarak sahiplendiniz. Onun mutluluğuna ortak oldunuz!`);
+
+    } catch (error: any) {
+      console.error("Sanal sahiplenme sırasında hata:", error);
+      Alert.alert("Hata", `Sanal sahiplenme işlemi sırasında bir sorun oluştu: ${error.message}`);
+    } finally {
+      setIsAdoptingVirtually(false);
+    }
+  };
 
   if (loading) {
     return <View style={styles.loaderContainer}><ActivityIndicator size="large" color="#007bff" /></View>;
@@ -119,17 +163,14 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
   return (
     <ScrollView style={styles.scrollView}>
       <View style={styles.container}>
-        {animal.imageUrl ? (
-          <Image source={{ uri: animal.imageUrl }} style={styles.image} resizeMode="cover" />
-        ) : (
-          <Image source={require('../assets/default-animal.png')} style={styles.image} resizeMode="contain" />
-        )}
+        {animal.imageUrl ? ( <Image source={{ uri: animal.imageUrl }} style={styles.image} resizeMode="cover" /> ) : ( <Image source={require('../assets/default-animal.png')} style={styles.image} resizeMode="contain" /> )}
         <Text style={styles.name}>{animal.name || 'İsimsiz'}</Text>
         <View style={styles.infoCard}>
             <InfoRow label="Tür" value={animal.type || 'N/A'} />
             <InfoRow label="Cins" value={animal.breed || 'N/A'} />
             <InfoRow label="Yaş" value={animal.age !== undefined ? animal.age.toString() : 'N/A'} />
             <InfoRow label="Barınak" value={animal.shelterName || 'N/A'} />
+            {animal.virtualAdoptersCount !== undefined && <InfoRow label="Sanal Sahip Sayısı" value={animal.virtualAdoptersCount.toString()} />}
         </View>
         <Text style={styles.sectionTitle}>Hakkında</Text>
         <Text style={styles.description}>{animal.description || 'Açıklama bulunmuyor.'}</Text>
@@ -139,72 +180,33 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
             </View>
         )}
         <View style={styles.buttonGroup}>
-            <TouchableOpacity style={styles.button} onPress={handleOpenDonationModal}>
+            <TouchableOpacity style={styles.button} onPress={handleOpenDonationModal} disabled={isAdoptingVirtually || hasAlreadyAdopted}>
               <Text style={styles.buttonText}>Bu Dosta Bağış Yap</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.virtualAdoptButton]} onPress={() => Alert.alert("Sanal Sahiplen", `${animal.name} için sanal sahiplenme özelliği yakında!`)}>
-              <Text style={styles.buttonText}>Sanal Sahiplen</Text>
+            <TouchableOpacity
+              style={[styles.button, styles.virtualAdoptButton, hasAlreadyAdopted && styles.disabledButton]}
+              onPress={handleVirtualAdoption}
+              disabled={isAdoptingVirtually || hasAlreadyAdopted}
+            >
+              {isAdoptingVirtually ? <ActivityIndicator color="#333"/> : <Text style={styles.buttonTextDark}>{hasAlreadyAdopted ? "Sahiplenildi" : "Sanal Sahiplen"}</Text>}
             </TouchableOpacity>
         </View>
       </View>
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => {
-          if (!isSubmittingDonation) {
-            setModalVisible(!modalVisible);
-          }
-        }}
-      >
-        <View style={styles.centeredView}>
-          <View style={styles.modalView}>
+      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => { if (!isSubmittingDonation) { setModalVisible(!modalVisible); } }}>
+        <View style={styles.centeredView}><View style={styles.modalView}>
             <Text style={styles.modalTitle}>{(animal && animal.name) || 'Dostumuz'} İçin Bağış Yap</Text>
-            <View style={styles.pickerContainer}>
-                <Text style={styles.modalLabel}>Bağış Türü:</Text>
-                <Picker
-                    selectedValue={donationData.type}
-                    style={styles.picker}
-                    onValueChange={(itemValue) => setDonationData(prev => ({...prev, type: itemValue, amount: '', description: ''}))}
-                >
-                    <Picker.Item label="Mama Bağışı" value="Mama" />
-                    <Picker.Item label="İlaç Bağışı" value="İlaç" />
-                    <Picker.Item label="Nakit Bağış" value="Nakit" />
-                    <Picker.Item label="Diğer (Oyuncak, Malzeme vb.)" value="Diğer" />
-                </Picker>
-            </View>
-            {donationData.type === 'Nakit' && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.modalLabel}>Miktar (TL):</Text>
-                <TextInput style={styles.modalInput} placeholder="Örn: 50" keyboardType="numeric" value={donationData.amount} onChangeText={(text) => setDonationData(prev => ({...prev, amount: text}))} />
-              </View>
-            )}
-            {donationData.type === 'Diğer' && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.modalLabel}>Bağış Açıklaması:</Text>
-                <TextInput style={[styles.modalInput, styles.modalTextarea]} placeholder="Örn: 1 adet Kedi Oyuncağı" multiline numberOfLines={3} value={donationData.description} onChangeText={(text) => setDonationData(prev => ({...prev, description: text}))} />
-              </View>
-            )}
-            <View style={styles.modalButtonContainer}>
-              <TouchableOpacity style={[styles.modalButton, styles.modalButtonClose]} onPress={() => setModalVisible(!modalVisible)} disabled={isSubmittingDonation} >
-                <Text style={styles.modalButtonText}>İptal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.modalButtonSubmit]} onPress={handleDonationSubmit} disabled={isSubmittingDonation} >
-                {isSubmittingDonation ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalButtonText}>Bağışı Tamamla</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+            <View style={styles.pickerContainer}><Text style={styles.modalLabel}>Bağış Türü:</Text><Picker selectedValue={donationData.type} style={styles.picker} onValueChange={(itemValue) => setDonationData(prev => ({...prev, type: itemValue, amount: '', description: ''}))}><Picker.Item label="Mama Bağışı" value="Mama" /><Picker.Item label="İlaç Bağışı" value="İlaç" /><Picker.Item label="Nakit Bağış" value="Nakit" /><Picker.Item label="Diğer" value="Diğer" /></Picker></View>
+            {donationData.type === 'Nakit' && ( <View style={styles.inputGroup}><Text style={styles.modalLabel}>Miktar (TL):</Text><TextInput style={styles.modalInput} placeholder="Örn: 50" keyboardType="numeric" value={donationData.amount} onChangeText={(text) => setDonationData(prev => ({...prev, amount: text}))} /></View> )}
+            {donationData.type === 'Diğer' && ( <View style={styles.inputGroup}><Text style={styles.modalLabel}>Bağış Açıklaması:</Text><TextInput style={[styles.modalInput, styles.modalTextarea]} placeholder="Örn: Kedi Oyuncağı" multiline numberOfLines={3} value={donationData.description} onChangeText={(text) => setDonationData(prev => ({...prev, description: text}))} /></View> )}
+            <View style={styles.modalButtonContainer}><TouchableOpacity style={[styles.modalButton, styles.modalButtonClose]} onPress={() => setModalVisible(!modalVisible)} disabled={isSubmittingDonation} ><Text style={styles.modalButtonText}>İptal</Text></TouchableOpacity><TouchableOpacity style={[styles.modalButton, styles.modalButtonSubmit]} onPress={handleDonationSubmit} disabled={isSubmittingDonation} >{isSubmittingDonation ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalButtonText}>Bağışı Tamamla</Text>}</TouchableOpacity></View>
+        </View></View>
       </Modal>
     </ScrollView>
   );
 };
 
-const InfoRow = ({label, value}: {label: string, value: string}) => (
-    <View style={styles.infoRow}><Text style={styles.label}>{label}:</Text><Text style={styles.value}>{value}</Text></View>
-);
-
+const InfoRow = ({label, value}: {label: string, value: string}) => ( <View style={styles.infoRow}><Text style={styles.label}>{label}:</Text><Text style={styles.value}>{value}</Text></View> );
 const styles = StyleSheet.create({
   scrollView: { flex: 1, backgroundColor: '#f8f9fa' },
   container: { paddingBottom: 30, },
@@ -223,6 +225,8 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#28a745', paddingVertical: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
   virtualAdoptButton: { backgroundColor: '#ffc107' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  buttonTextDark: { color: '#333', fontSize: 16, fontWeight: 'bold' }, // Sanal sahiplen butonu için
+  disabledButton: { backgroundColor: '#bdc3c7' },
   centeredView: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", },
   modalView: { margin: 20, backgroundColor: "white", borderRadius: 20, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5, width: '90%', },
   modalTitle: { marginBottom: 20, textAlign: "center", fontSize: 20, fontWeight: "bold" },

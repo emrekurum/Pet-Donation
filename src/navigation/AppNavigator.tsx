@@ -1,9 +1,9 @@
 // src/navigation/AppNavigator.tsx
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { View, ActivityIndicator, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import { auth, db } from '../api/firebase'; // db import edildi
+import { auth, db } from '../api/firebase';
 
 // Ekranları import ediyoruz
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -11,12 +11,13 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import ShelterAnimalsScreen from '../screens/ShelterAnimalsScreen';
 import SelectCityScreen from '../screens/SelectCityScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
-// import AnimalDetailScreen from '../screens/AnimalDetailScreen'; // İleride eklenecek
+import AnimalTypesScreen from '../screens/AnimalTypesScreen';
+import AnimalsListScreen from '../screens/AnimalsListScreen';
+import AnimalDetailScreen from '../screens/AnimalDetailScreen';
 
-// Navigasyon yığınları için tip tanımları
+// Navigasyon tipleri
 export type AuthStackParamList = {
   Welcome: undefined;
   Login: undefined;
@@ -26,10 +27,11 @@ export type AuthStackParamList = {
 export type MainStackParamList = {
   Home: undefined;
   Profile: undefined;
-  SelectCity: { fromProfile?: boolean }; // Nereden gelindiğini belirtmek için opsiyonel parametre
+  SelectCity: { fromProfile?: boolean; navigateToHomeOnSave?: boolean };
   EditProfile: undefined;
-  ShelterAnimals: { shelterId: string; shelterName?: string };
-  AnimalDetail: { animalId: string; animalName?: string }; // İleride eklenecek
+  AnimalTypes: { shelterId: string; shelterName?: string };
+  AnimalsList: { shelterId: string; shelterName?: string; animalType: string };
+  AnimalDetail: { animalId: string; animalName?: string };
 };
 
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
@@ -43,38 +45,61 @@ const AuthScreens = () => (
   </AuthStackNav.Navigator>
 );
 
-// MainScreens için başlangıç rotasını AppNavigator'da belirleyeceğiz.
+const defaultMainStackScreenOptions: NativeStackNavigationOptions = {
+  headerStyle: { backgroundColor: '#007bff' },
+  headerTintColor: '#fff',
+  headerTitleStyle: { fontWeight: 'bold' },
+};
+
 const MainScreensComponent = ({ initialRouteName }: { initialRouteName: keyof MainStackParamList }) => (
   <MainStackNav.Navigator
     initialRouteName={initialRouteName}
-    screenOptions={{
-      headerStyle: { backgroundColor: '#007bff' },
-      headerTintColor: '#fff',
-      headerTitleStyle: { fontWeight: 'bold' },
-    }}>
-    <MainStackNav.Screen name="SelectCity" component={SelectCityScreen} options={{ title: 'Şehir Seçin/Değiştirin' }} />
-    <MainStackNav.Screen name="Home" component={HomeScreen} options={{ title: 'Barınaklar' }} />
+    screenOptions={defaultMainStackScreenOptions}
+  >
+    <MainStackNav.Screen
+      name="SelectCity"
+      component={SelectCityScreen}
+      options={{ title: 'Yaşadığınız Şehri Seçin' }}
+    />
+    <MainStackNav.Screen
+      name="Home"
+      component={HomeScreen}
+      options={({ navigation }) => ({ // HomeScreen'e özel headerRight ekliyoruz
+        title: 'Barınaklar',
+        headerRight: () => (
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={{ marginRight: 15 }}>
+            <Image
+              source={require('../assets/default-avatar.png')} // Profil ikonu için bir resim
+              style={{ width: 28, height: 28, borderRadius: 14 }}
+            />
+          </TouchableOpacity>
+        ),
+      })}
+    />
     <MainStackNav.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profilim' }} />
     <MainStackNav.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Profili Düzenle' }} />
     <MainStackNav.Screen
-      name="ShelterAnimals"
-      component={ShelterAnimalsScreen}
-      options={({ route }) => ({ title: route.params?.shelterName || 'Barınak Hayvanları' })}
+      name="AnimalTypes"
+      component={AnimalTypesScreen}
+      options={({ route }) => ({ title: `${route.params?.shelterName || 'Barınak'} - Türler` })}
     />
-    {/*
+    <MainStackNav.Screen
+      name="AnimalsList"
+      component={AnimalsListScreen}
+      options={({ route }) => ({ title: `${route.params?.shelterName} - ${route.params.animalType}` })}
+    />
     <MainStackNav.Screen
       name="AnimalDetail"
-      component={AnimalDetailScreen} // Bu ekranı oluşturmanız gerekir
-      options={({ route }) => ({ title: route.params.animalName || 'Hayvan Detayı' })}
+      component={AnimalDetailScreen}
+      options={({ route }) => ({ title: route.params?.animalName || 'Hayvan Detayı' })}
     />
-    */}
   </MainStackNav.Navigator>
 );
 
 const AppNavigator = () => {
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
-  const [initialRoute, setInitialRoute] = useState<keyof MainStackParamList>('Home');
+  const [initialRoute, setInitialRoute] = useState<keyof MainStackParamList>('SelectCity');
   const [isLoadingRoute, setIsLoadingRoute] = useState(true);
 
   useEffect(() => {
@@ -87,7 +112,7 @@ const AppNavigator = () => {
           if (userDoc.exists && userDoc.data()?.selectedCity) {
             setInitialRoute('Home');
           } else {
-            setInitialRoute('SelectCity'); // İlk girişte veya şehir seçilmemişse
+            setInitialRoute('SelectCity');
           }
         } catch (error) {
           console.error("AppNavigator: Kullanıcı şehir kontrol hatası:", error);

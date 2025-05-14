@@ -2,26 +2,31 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { auth, db } from '../api/firebase';
-import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'; // setDoc eklendi (kullanıcı dokümanı yoksa oluşturmak için)
+import { auth, db } from '../api/firebase'; // db zaten @react-native-firebase/firestore instance'ı
+// Firebase Web SDK'sından yapılan bu import'u kaldırıyoruz:
+// import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { MainStackParamList } from '../navigation/AppNavigator';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'SelectCity'>;
 
-const SelectCityScreen = ({ navigation }: Props) => {
+const SelectCityScreen = ({ navigation, route }: Props) => {
   const [city, setCity] = useState('');
-  const [loading, setLoading] = useState(false); // Genel yükleme durumu
-  const [fetchingInitialCity, setFetchingInitialCity] = useState(true); // İlk şehir yükleme durumu
+  const [loading, setLoading] = useState(false);
+  const [fetchingInitialCity, setFetchingInitialCity] = useState(true);
   const currentUser = auth.currentUser;
+
+  const fromProfile = route.params?.fromProfile;
+  const navigateToHomeOnSave = route.params?.navigateToHomeOnSave !== false;
 
   useEffect(() => {
     const fetchUserCity = async () => {
       if (currentUser) {
         setFetchingInitialCity(true);
         try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          const docSnap = await getDoc(userDocRef);
-          if (docSnap.exists() && docSnap.data()?.selectedCity) {
+          // @react-native-firebase/firestore kullanımı:
+          const userDocRef = db.collection('users').doc(currentUser.uid);
+          const docSnap = await userDocRef.get();
+          if (docSnap.exists && docSnap.data()?.selectedCity) {
             setCity(docSnap.data()?.selectedCity);
           }
         } catch (error) {
@@ -48,12 +53,17 @@ const SelectCityScreen = ({ navigation }: Props) => {
 
     setLoading(true);
     try {
-      const userDocRef = doc(db, 'users', currentUser.uid);
+      // @react-native-firebase/firestore kullanımı:
+      const userDocRef = db.collection('users').doc(currentUser.uid);
       // Kullanıcı dokümanı yoksa oluştur, varsa güncelle (merge:true ile)
-      await setDoc(userDocRef, { selectedCity: city.trim() }, { merge: true });
+      await userDocRef.set({ selectedCity: city.trim() }, { merge: true });
 
       Alert.alert('Başarılı', 'Şehir bilginiz kaydedildi!');
-      navigation.replace('Home');
+      if (fromProfile) {
+        navigation.goBack();
+      } else if (navigateToHomeOnSave) {
+        navigation.replace('Home');
+      }
     } catch (error) {
       console.error("Şehir kaydedilirken hata:", error);
       Alert.alert('Hata', 'Şehir bilgisi kaydedilirken bir sorun oluştu.');
@@ -70,7 +80,7 @@ const SelectCityScreen = ({ navigation }: Props) => {
     <View style={styles.container}>
       <Text style={styles.title}>Yaşadığınız Şehri Belirtin</Text>
       <Text style={styles.subtitle}>
-        Size en yakın barınakları ve yardım bekleyen dostlarımızı gösterebilmemiz için bu bilgiye ihtiyacımız var.
+        Size en yakın barınakları ve dostlarımızı gösterebilmemiz için bu bilgiye ihtiyacımız var.
       </Text>
       <TextInput
         style={styles.input}

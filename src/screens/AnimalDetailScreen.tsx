@@ -1,171 +1,185 @@
-// src/screens/AnimalDetailScreen.tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, Image, ActivityIndicator,
-  Alert, TouchableOpacity, Modal, TextInput, Platform, FlatList, Linking, Dimensions
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { auth, db } from '../api/firebase';
-import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
-import { MainStackParamList } from '../navigation/AppNavigator';
+import { StyleSheet, Dimensions } from 'react-native';
 
-// Stillerin component'lerden ÖNCE tanımlanması
+const { width } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
-  scrollView: { flex: 1, backgroundColor: '#f8f9fa' },
-  container: { paddingBottom: 30, },
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  imageGallery: { height: 320, marginBottom: 15, backgroundColor: '#e0e0e0' },
-  galleryImage: { width: Dimensions.get('window').width, height: 320 },
-  image: { width: '100%', height: 300, backgroundColor: '#e9ecef', marginBottom: 20, },
-  name: { fontSize: 28, fontWeight: 'bold', color: '#2d3436', marginVertical: 10, textAlign: 'center', paddingHorizontal: 20, },
-  infoCard: { backgroundColor: '#fff', borderRadius: 10, padding: 20, marginHorizontal: 20, marginBottom: 20, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41, },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', },
-  infoLabel: { fontSize: 16, fontWeight: '500', color: '#636e72' }, // Bu stil artık bulunabilir olmalı
-  infoValue: { fontSize: 16, color: '#2d3436', textAlign: 'right', flexShrink: 1 }, // Bu stil artık bulunabilir olmalı
-  sectionTitle: { fontSize: 22, fontWeight: 'bold', color: '#2d3436', marginTop: 20, marginBottom: 10, paddingHorizontal: 20, },
-  sectionTitleAlt: { fontSize: 18, fontWeight: '600', color: '#34495e', marginBottom: 8, },
-  description: { fontSize: 16, color: '#636e72', lineHeight: 24, marginBottom: 20, paddingHorizontal: 20, },
-  needsSection: { marginTop: 10, marginBottom: 20, paddingHorizontal: 20, backgroundColor: '#fff', borderRadius: 10, padding: 15, marginHorizontal:20, elevation: 2 },
-  needItemContainer: { paddingVertical: 6, },
-  needItemText: { fontSize: 16, color: '#555', },
-  shelterContactCard: { backgroundColor: '#e9f5ff', borderRadius: 10, padding: 15, marginHorizontal: 20, marginBottom: 20, elevation: 2, borderColor: '#b3d9ff', borderWidth:1 },
-  shelterNameText: { fontSize: 17, fontWeight: 'bold', color: '#0056b3', marginBottom: 5},
-  contactText: { fontSize: 16, color: '#333', marginBottom: 5, },
-  contactLink: { fontSize: 16, color: '#007bff', marginBottom: 5, textDecorationLine: 'underline', },
-  buttonGroup: { marginTop: 20, paddingHorizontal: 20, },
-  button: { backgroundColor: '#28a745', paddingVertical: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
-  virtualAdoptButton: { backgroundColor: '#ffc107' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  buttonTextDark: { color: '#333', fontSize: 16, fontWeight: 'bold' },
-  disabledButton: { backgroundColor: '#bdc3c7' },
-  centeredView: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", },
-  modalView: { margin: 20, backgroundColor: "white", borderRadius: 20, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5, width: '90%', },
-  modalTitle: { marginBottom: 20, textAlign: "center", fontSize: 20, fontWeight: "bold" },
-  pickerContainer: { width: '100%', marginBottom: 15, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, },
-  picker: { width: '100%', height: Platform.OS === 'ios' ? 180 : 50, },
-  inputGroup: { width: '100%', marginBottom: 15, },
-  modalLabel: { fontSize: 16, marginBottom: 5, color: '#333', alignSelf: 'flex-start' },
-  modalInput: { width: '100%', height: 50, borderColor: '#ddd', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, fontSize: 16, backgroundColor: '#fff', },
-  modalTextarea: { height: 80, textAlignVertical: 'top', },
-  modalButtonContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 20, },
-  modalButton: { borderRadius: 10, paddingVertical: 12, paddingHorizontal: 25, elevation: 2, minWidth: 100, alignItems: 'center' },
-  modalButtonClose: { backgroundColor: "#7f8c8d", },
-  modalButtonSubmit: { backgroundColor: "#27ae60", },
-  modalButtonText: { color: "white", fontWeight: "bold", textAlign: "center" }
+  container: {
+    flex: 1,
+    backgroundColor: '#f8f8f8', // Açık bir arka plan rengi
+  },
+  image: {
+    width: '100%',
+    height: 300, // Yüksekliği artırıldı
+    resizeMode: 'cover', // Resmin tamamını kaplaması için
+  },
+  contentContainer: {
+    padding: 20,
+    borderTopLeftRadius: 20, // Üst köşelere yuvarlaklık
+    borderTopRightRadius: 20,
+    backgroundColor: '#ffffff', // İçerik alanı için beyaz arka plan
+    marginTop: -20, // Resmin üzerine gelmesi için negatif margin
+    flex: 1,
+  },
+  name: {
+    fontSize: 28, // Daha büyük başlık fontu
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333', // Koyu gri renk
+    textAlign: 'center', // Ortalanmış başlık
+  },
+  // HATA DÜZELTMESİ: infoRow stili eklendi
+  infoRow: {
+    flexDirection: 'row', // Öğeleri yatayda sıralar
+    alignItems: 'center', // Öğeleri dikeyde ortalar
+    marginBottom: 12, // Alt boşluk
+    paddingVertical: 8, // Dikey iç boşluk
+    borderBottomWidth: 1, // Ayırıcı çizgi
+    borderBottomColor: '#eee', // Ayırıcı çizgi rengi
+  },
+  // HATA DÜZELTMESİ: label stili eklendi
+  label: {
+    fontSize: 16,
+    fontWeight: '600', // Yarı kalın font
+    color: '#555', // Orta gri renk
+    flex: 1, // Etiketin genişlemesini sağlar
+  },
+  // HATA DÜZELTMESİ: value stili eklendi
+  value: {
+    fontSize: 16,
+    color: '#333', // Koyu gri renk
+    flex: 2, // Değerin daha fazla alan kaplamasını sağlar
+    textAlign: 'right', // Değeri sağa yaslar
+  },
+  infoIcon: {
+    marginRight: 10, // İkon ve metin arasına boşluk
+    color: '#007bff', // İkon rengi (örnek: mavi)
+  },
+  description: {
+    fontSize: 16,
+    lineHeight: 24, // Satır yüksekliği
+    color: '#666', // Biraz daha açık gri renk
+    marginBottom: 20,
+    textAlign: 'justify', // Metni iki yana yaslar
+  },
+  title: {
+    fontSize: 20, // Ara başlıklar için font boyutu
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 10,
+    color: '#444',
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15, // Daha fazla alt boşluk
+  },
+  contactLabel: {
+    fontWeight: 'bold',
+    color: '#555',
+    fontSize: 16,
+  },
+  // HATA DÜZELTMESİ: contactText stili eklendi (contactLink yerine veya ek olarak kullanılabilir)
+  contactText: {
+    fontSize: 16,
+    color: '#007bff', // Bağlantı rengi
+    marginLeft: 8,
+  },
+  contactLink: {
+    fontSize: 16,
+    color: '#007bff', // Bağlantı rengi
+    textDecorationLine: 'underline', // Altı çizili
+    marginLeft: 8,
+  },
+  map: {
+    height: 250, // Harita yüksekliği artırıldı
+    borderRadius: 10, // Köşeleri yuvarlaklaştırıldı
+    marginBottom: 20,
+    overflow: 'hidden', // Taşan içeriği gizler (özellikle borderRadius için)
+  },
+  buttonContainer: {
+    marginTop: 20,
+    alignItems: 'center', // Butonu ortalar
+  },
+  donateButton: {
+    backgroundColor: '#28a745', // Yeşil renk (bağış butonu için uygun)
+    paddingVertical: 15, // Dikey iç boşluk
+    paddingHorizontal: 30, // Yatay iç boşluk
+    borderRadius: 25, // Daha yuvarlak buton
+    width: width * 0.8, // Genişliğin %80'i
+    alignItems: 'center',
+    shadowColor: '#000', // Gölge
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  donateButtonText: {
+    color: '#fff',
+    fontSize: 18, // Font boyutu artırıldı
+    fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Yarı saydam arka plan
+  },
+  modalContent: {
+    width: width * 0.9, // Modal genişliği
+    backgroundColor: '#fff',
+    borderRadius: 15, // Daha yuvarlak köşeler
+    padding: 25, // İç boşluk artırıldı
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 22, // Modal başlığı font boyutu
+    fontWeight: 'bold',
+    marginBottom: 20, // Alt boşluk
+    color: '#333',
+  },
+  input: {
+    width: '100%',
+    height: 50, // Giriş alanı yüksekliği
+    borderColor: '#ccc', // Kenarlık rengi
+    borderWidth: 1,
+    borderRadius: 10, // Köşe yuvarlaklığı
+    paddingHorizontal: 15, // Yatay iç boşluk
+    marginBottom: 15, // Alt boşluk
+    fontSize: 16, // Font boyutu
+  },
+  modalButton: {
+    backgroundColor: '#007bff', // Mavi renk
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 20, // Daha yuvarlak buton
+    marginTop: 10, // Üst boşluk
+    minWidth: 120, // Minimum genişlik
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // İsteğe bağlı: Kapatma butonu için ek stil
+  closeButton: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+  },
+  closeButtonText: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: '#888'
+  }
 });
 
-type Props = NativeStackScreenProps<MainStackParamList, 'AnimalDetail'>;
-
-interface AnimalDetails {
-  id: string; name?: string; type?: string; breed?: string; age?: number;
-  imageUrl?: string; photos?: string[]; description?: string;
-  shelterId?: string; shelterName?: string; needs?: string[];
-  virtualAdoptersCount?: number;
-}
-
-interface ShelterDetails {
-  id: string; name?: string; contactPhone?: string; contactEmail?: string; address?: string;
-}
-
-interface DonationData { type: string; amount?: string; description?: string; }
-
-interface InfoRowProps { label: string; value: string | number; }
-
-const InfoRow: React.FC<InfoRowProps> = ({ label, value }) => (
-    <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>{label}:</Text>
-        <Text style={styles.infoValue}>{String(value)}</Text>
-    </View>
-);
-
-const AnimalDetailScreen = ({ route, navigation }: Props) => {
-  const { animalId } = route.params;
-  const [animal, setAnimal] = useState<AnimalDetails | null>(null);
-  const [shelterInfo, setShelterInfo] = useState<ShelterDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [donationData, setDonationData] = useState<DonationData>({ type: 'Mama', amount: '', description: '' });
-  const [isSubmittingDonation, setIsSubmittingDonation] = useState(false);
-  const [isAdoptingVirtually, setIsAdoptingVirtually] = useState(false);
-  const [hasAlreadyAdopted, setHasAlreadyAdopted] = useState(false);
-  const currentUser = auth.currentUser;
-
-  const fetchData = useCallback(async () => {
-    // ... (useEffect içeriği önceki gibi, değişiklik yok)
-    if (!animalId) { Alert.alert("Hata", "Hayvan ID'si bulunamadı."); if (navigation.canGoBack()) navigation.goBack(); setLoading(false); return; }
-    if (!currentUser) { Alert.alert("Hata", "Lütfen önce giriş yapın."); setLoading(false); return; }
-    setLoading(true);
-    try {
-      const animalDocRef = db.collection('animals').doc(animalId);
-      const docSnapshot = await animalDocRef.get();
-      if (docSnapshot.exists) {
-        const animalData = { id: docSnapshot.id, ...docSnapshot.data() } as AnimalDetails;
-        setAnimal(animalData);
-        if (animalData.shelterId) {
-          const shelterDoc = await db.collection('shelters').doc(animalData.shelterId).get();
-          if (shelterDoc.exists) { setShelterInfo({ id: shelterDoc.id, ...shelterDoc.data() } as ShelterDetails); }
-        }
-        const adoptionQuery = db.collection('virtualAdoptions').where('userId', '==', currentUser.uid).where('animalId', '==', animalId).limit(1);
-        const adoptionSnapshot = await adoptionQuery.get();
-        setHasAlreadyAdopted(!adoptionSnapshot.empty);
-      } else { Alert.alert("Hata", "Hayvan bulunamadı."); if (navigation.canGoBack()) navigation.goBack(); }
-    } catch (error: any) {
-      console.error("Veri çekilirken hata (AnimalDetailScreen): ", error);
-      let errorMessage = "Detaylar yüklenirken bir sorun oluştu.";
-      if (error.code === 'firestore/failed-precondition') { errorMessage = "Veri yüklenemedi. Lütfen Firestore indekslerinizi kontrol edin."; }
-      Alert.alert("Hata", errorMessage);
-      if (navigation.canGoBack()) navigation.goBack();
-    } finally { setLoading(false); }
-  }, [animalId, currentUser, navigation]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleOpenDonationModal = () => { setModalVisible(true); setDonationData({ type: 'Mama', amount: '', description: '' }); };
-  const handleDonationSubmit = async () => { /* ... (önceki gibi) ... */ };
-  const handleVirtualAdoption = async () => { /* ... (önceki gibi) ... */ };
-  const renderPhotoItem = ({ item }: { item: string }) => ( <Image source={{ uri: item }} style={styles.galleryImage} resizeMode="cover" /> );
-
-  if (loading) { return <View style={styles.loaderContainer}><ActivityIndicator size="large" color="#007bff" /></View>; }
-  if (!animal) { return <View style={styles.loaderContainer}><Text>Hayvan bilgileri yüklenemedi.</Text></View>; }
-
-  const displayImages = animal.photos && animal.photos.length > 0 ? animal.photos : (animal.imageUrl ? [animal.imageUrl] : []);
-  const submitButtonContent = isSubmittingDonation ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalButtonText}>Bağışı Tamamla</Text>;
-
-  return (
-    <ScrollView style={styles.scrollView}>
-      <View style={styles.container}>
-        {displayImages.length > 0 ? ( <FlatList data={displayImages} renderItem={renderPhotoItem} keyExtractor={(item, index) => `photo-${animal.id}-${index}`} horizontal showsHorizontalScrollIndicator={false} pagingEnabled style={styles.imageGallery} /> ) : ( <Image source={require('../assets/default-animal.png')} style={styles.image} resizeMode="contain" /> )}
-        <Text style={styles.name}>{animal.name || 'İsimsiz'}</Text>
-        <View style={styles.infoCard}>
-            <InfoRow label="Tür" value={animal.type || 'N/A'} />
-            <InfoRow label="Cins" value={animal.breed || 'N/A'} />
-            <InfoRow label="Yaş" value={animal.age !== undefined ? animal.age.toString() : 'N/A'} />
-            <InfoRow label="Barınak" value={animal.shelterName || shelterInfo?.name || 'N/A'} />
-            {animal.virtualAdoptersCount !== undefined && <InfoRow label="Sanal Sahip Sayısı" value={animal.virtualAdoptersCount.toString()} />}
-        </View>
-        {shelterInfo && (shelterInfo.contactPhone || shelterInfo.contactEmail || shelterInfo.address) && ( <View style={styles.shelterContactCard}><Text style={styles.sectionTitleAlt}>Barınak Bilgileri</Text>{shelterInfo.name && <Text style={styles.shelterNameText}>{shelterInfo.name}</Text> }{shelterInfo.address && <Text style={styles.contactText}>Adres: {shelterInfo.address}</Text> }{shelterInfo.contactPhone && ( <TouchableOpacity onPress={() => Linking.openURL(`tel:${shelterInfo.contactPhone}`)}><Text style={styles.contactLink}>Telefon: {shelterInfo.contactPhone}</Text></TouchableOpacity> )}{shelterInfo.contactEmail && ( <TouchableOpacity onPress={() => Linking.openURL(`mailto:${shelterInfo.contactEmail}`)}><Text style={styles.contactLink}>E-posta: {shelterInfo.contactEmail}</Text></TouchableOpacity> )}</View> )}
-        <Text style={styles.sectionTitle}>Hakkında</Text>
-        <Text style={styles.description}>{animal.description || 'Açıklama bulunmuyor.'}</Text>
-        {animal.needs && animal.needs.length > 0 && ( <View style={styles.needsSection}><Text style={styles.sectionTitleAlt}>İhtiyaçları</Text>{animal.needs.map((need, index) => ( <View key={index} style={styles.needItemContainer}><Text style={styles.needItemText}>• {need}</Text></View> ))}</View> )}
-        <View style={styles.buttonGroup}>
-            <TouchableOpacity style={[styles.button, (isAdoptingVirtually || hasAlreadyAdopted) && styles.disabledButton]} onPress={handleOpenDonationModal} disabled={isAdoptingVirtually || hasAlreadyAdopted || isSubmittingDonation}><Text style={styles.buttonText}>Bu Dosta Bağış Yap</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.virtualAdoptButton, hasAlreadyAdopted && styles.disabledButton]} onPress={handleVirtualAdoption} disabled={isAdoptingVirtually || hasAlreadyAdopted || isSubmittingDonation}>{isAdoptingVirtually ? <ActivityIndicator color="#333"/> : <Text style={styles.buttonTextDark}>{hasAlreadyAdopted ? "Sahiplenildi" : "Sanal Sahiplen"}</Text>}</TouchableOpacity>
-        </View>
-      </View>
-      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => { if (!isSubmittingDonation) { setModalVisible(!modalVisible); } }} >
-        <View style={styles.centeredView}><View style={styles.modalView}>
-            <Text style={styles.modalTitle}>{(animal && animal.name) || 'Dostumuz'} İçin Bağış Yap</Text>
-            <View style={styles.pickerContainer}><Text style={styles.modalLabel}>Bağış Türü:</Text><Picker selectedValue={donationData.type} style={styles.picker} onValueChange={(itemValue) => setDonationData(prev => ({...prev, type: itemValue, amount: '', description: ''}))} ><Picker.Item label="Mama Bağışı" value="Mama" /><Picker.Item label="İlaç Bağışı" value="İlaç" /><Picker.Item label="Nakit Bağış" value="Nakit" /><Picker.Item label="Diğer (Oyuncak, Malzeme vb.)" value="Diğer" /></Picker></View>
-            {donationData.type === 'Nakit' && ( <View style={styles.inputGroup}><Text style={styles.modalLabel}>Miktar (TL):</Text><TextInput style={styles.modalInput} placeholder="Örn: 50" keyboardType="numeric" value={donationData.amount} onChangeText={(text) => setDonationData(prev => ({...prev, amount: text}))} /></View> )}
-            {donationData.type === 'Diğer' && ( <View style={styles.inputGroup}><Text style={styles.modalLabel}>Bağış Açıklaması:</Text><TextInput style={[styles.modalInput, styles.modalTextarea]} placeholder="Örn: Kedi Oyuncağı" multiline numberOfLines={3} value={donationData.description} onChangeText={(text) => setDonationData(prev => ({...prev, description: text}))} /></View> )}
-            <View style={styles.modalButtonContainer}><TouchableOpacity style={[styles.modalButton, styles.modalButtonClose]} onPress={() => setModalVisible(!modalVisible)} disabled={isSubmittingDonation} ><Text style={styles.modalButtonText}>İptal</Text></TouchableOpacity><TouchableOpacity style={[styles.modalButton, styles.modalButtonSubmit]} onPress={handleDonationSubmit} disabled={isSubmittingDonation} >{submitButtonContent}</TouchableOpacity></View>
-        </View></View>
-      </Modal>
-    </ScrollView>
-  );
-};
-
-export default AnimalDetailScreen;
+export default styles;

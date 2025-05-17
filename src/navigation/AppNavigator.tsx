@@ -15,7 +15,7 @@ import SelectCityScreen from '../screens/SelectCityScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import AnimalTypesScreen from '../screens/AnimalTypesScreen';
 import AnimalsListScreen from '../screens/AnimalsListScreen';
-import AnimalDetailScreen from '../screens/AnimalDetailScreen';
+import AnimalDetailScreen from '../screens/AnimalDetailScreen'; // Bu importun doğru olduğundan emin olun
 
 // Navigasyon tipleri
 export type AuthStackParamList = {
@@ -46,15 +46,15 @@ const AuthScreens = () => (
 );
 
 const defaultMainStackScreenOptions: NativeStackNavigationOptions = {
-  headerStyle: { backgroundColor: '#007bff' },
-  headerTintColor: '#fff',
-  headerTitleStyle: { fontWeight: 'bold' },
+  headerStyle: { backgroundColor: '#007bff' }, // Ana header rengi
+  headerTintColor: '#fff', // Header yazı ve ikon rengi
+  headerTitleStyle: { fontWeight: 'bold' }, // Header başlık stili
 };
 
 const MainScreensComponent = ({ initialRouteName }: { initialRouteName: keyof MainStackParamList }) => (
   <MainStackNav.Navigator
     initialRouteName={initialRouteName}
-    screenOptions={defaultMainStackScreenOptions}
+    screenOptions={defaultMainStackScreenOptions} // Tüm ekranlar için varsayılan seçenekler
   >
     <MainStackNav.Screen
       name="SelectCity"
@@ -64,17 +64,10 @@ const MainScreensComponent = ({ initialRouteName }: { initialRouteName: keyof Ma
     <MainStackNav.Screen
       name="Home"
       component={HomeScreen}
-      options={({ navigation }) => ({ // HomeScreen'e özel headerRight ekliyoruz
-        title: 'Barınaklar',
-        headerRight: () => (
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={{ marginRight: 15 }}>
-            <Image
-              source={require('../assets/default-avatar.png')} // Profil ikonu için bir resim
-              style={{ width: 28, height: 28, borderRadius: 14 }}
-            />
-          </TouchableOpacity>
-        ),
-      })}
+      options={{ // HomeScreen için özel seçenekler
+        title: 'Barınaklar', // Header başlığı
+        headerRight: undefined, // VEYA headerRight: null, // Sağ taraftaki ikonu kaldırır
+      }}
     />
     <MainStackNav.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profilim' }} />
     <MainStackNav.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Profili Düzenle' }} />
@@ -90,7 +83,7 @@ const MainScreensComponent = ({ initialRouteName }: { initialRouteName: keyof Ma
     />
     <MainStackNav.Screen
       name="AnimalDetail"
-      component={AnimalDetailScreen}
+      component={AnimalDetailScreen} // AnimalDetailScreen bileşenini burada kullanıyoruz
       options={({ route }) => ({ title: route.params?.animalName || 'Hayvan Detayı' })}
     />
   </MainStackNav.Navigator>
@@ -121,14 +114,14 @@ const AppNavigator = () => {
           setIsLoadingRoute(false);
         }
       } else {
-        setIsLoadingRoute(false);
+        setIsLoadingRoute(false); // Kullanıcı yoksa yükleme bitti
       }
       if (initializing) {
         setInitializing(false);
       }
     });
-    return subscriber;
-  }, [initializing]);
+    return subscriber; // useEffect cleanup
+  }, [initializing]); // Bağımlılıklar doğru ayarlandı
 
   if (initializing || (user && isLoadingRoute)) {
     return (

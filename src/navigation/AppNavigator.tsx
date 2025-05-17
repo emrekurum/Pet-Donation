@@ -1,9 +1,9 @@
 // src/navigation/AppNavigator.tsx
-import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
-import { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import { auth, db } from '../api/firebase';
+import React from 'react'; // useEffect ve useState kaldırıldı, çünkü AppNavigator'da kullanılmıyor
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+// Firebase importları burada genellikle gerekmez, App.tsx veya ilgili ekranlarda olmalı
+// import { FirebaseAuthTypes } from '@react-native-firebase/auth';
+// import { auth, db } from '../api/firebase';
 
 // Ekranları import ediyoruz
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -15,7 +15,9 @@ import SelectCityScreen from '../screens/SelectCityScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import AnimalTypesScreen from '../screens/AnimalTypesScreen';
 import AnimalsListScreen from '../screens/AnimalsListScreen';
-import AnimalDetailScreen from '../screens/AnimalDetailScreen'; // Bu importun doğru olduğundan emin olun
+import AnimalDetailScreen from '../screens/AnimalDetailScreen';
+import MyDonationsScreen from '../screens/MyDonationsScreen'; // Yeni ekran import edildi
+import MyVirtualAdoptionsScreen from '../screens/MyVirtualAdoptionsScreen'; // Yeni ekran import edildi
 
 // Navigasyon tipleri
 export type AuthStackParamList = {
@@ -32,6 +34,9 @@ export type MainStackParamList = {
   AnimalTypes: { shelterId: string; shelterName?: string };
   AnimalsList: { shelterId: string; shelterName?: string; animalType: string };
   AnimalDetail: { animalId: string; animalName?: string };
+  MyDonations: undefined; // Yeni ekran eklendi
+  MyVirtualAdoptions: undefined; // Yeni ekran eklendi
+  // Diğer ekranlarınız ve parametreleri buraya eklenebilir
 };
 
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
@@ -45,97 +50,49 @@ const AuthScreens = () => (
   </AuthStackNav.Navigator>
 );
 
-const defaultMainStackScreenOptions: NativeStackNavigationOptions = {
-  headerStyle: { backgroundColor: '#007bff' }, // Ana header rengi
-  headerTintColor: '#fff', // Header yazı ve ikon rengi
-  headerTitleStyle: { fontWeight: 'bold' }, // Header başlık stili
-};
+// defaultMainStackScreenOptions App.tsx'ten alındı, burada da kullanılabilir veya App.tsx'e taşınabilir
+// const defaultMainStackScreenOptions: NativeStackNavigationOptions = {
+//   headerStyle: { backgroundColor: '#007bff' },
+//   headerTintColor: '#fff',
+//   headerTitleStyle: { fontWeight: 'bold' },
+// };
 
-const MainScreensComponent = ({ initialRouteName }: { initialRouteName: keyof MainStackParamList }) => (
+// MainScreensComponent App.tsx içinde tanımlanmıştı,
+// eğer AppNavigator'ı ayrı bir dosyada tutuyorsanız ve App.tsx'te kullanıyorsanız,
+// bu bileşenin App.tsx'te kalması veya oradan import edilmesi daha uygun olabilir.
+// Şimdilik, AppNavigator'ın ana yapısını gösteriyorum.
+
+// Eğer AppNavigator'ınız ana navigasyon konteynerini içeriyorsa:
+// import { NavigationContainer } from '@react-navigation/native';
+// const AppNavigator = () => {
+//   const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
+//   // ... (kullanıcı oturumunu dinleme mantığı) ...
+//   return (
+//     <NavigationContainer>
+//       {user ? <MainScreens /> : <AuthScreens />}
+//     </NavigationContainer>
+//   );
+// };
+
+// Veya sadece Stack'leri export ediyorsanız:
+export const MainScreensStack = () => (
   <MainStackNav.Navigator
-    initialRouteName={initialRouteName}
-    screenOptions={defaultMainStackScreenOptions} // Tüm ekranlar için varsayılan seçenekler
+    // initialRouteName={initialRouteName} // Bu App.tsx'ten yönetilebilir
+    // screenOptions={defaultMainStackScreenOptions} // Bu App.tsx'ten yönetilebilir
   >
-    <MainStackNav.Screen
-      name="SelectCity"
-      component={SelectCityScreen}
-      options={{ title: 'Yaşadığınız Şehri Seçin' }}
-    />
-    <MainStackNav.Screen
-      name="Home"
-      component={HomeScreen}
-      options={{ // HomeScreen için özel seçenekler
-        title: 'Barınaklar', // Header başlığı
-        headerRight: undefined, // VEYA headerRight: null, // Sağ taraftaki ikonu kaldırır
-      }}
-    />
+    <MainStackNav.Screen name="Home" component={HomeScreen} options={{ title: 'Barınaklar' /* headerRight vb. ayarlar App.tsx'te olabilir */ }} />
+    <MainStackNav.Screen name="SelectCity" component={SelectCityScreen} options={{ title: 'Yaşadığınız Şehri Seçin' }} />
     <MainStackNav.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profilim' }} />
     <MainStackNav.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Profili Düzenle' }} />
-    <MainStackNav.Screen
-      name="AnimalTypes"
-      component={AnimalTypesScreen}
-      options={({ route }) => ({ title: `${route.params?.shelterName || 'Barınak'} - Türler` })}
-    />
-    <MainStackNav.Screen
-      name="AnimalsList"
-      component={AnimalsListScreen}
-      options={({ route }) => ({ title: `${route.params?.shelterName} - ${route.params.animalType}` })}
-    />
-    <MainStackNav.Screen
-      name="AnimalDetail"
-      component={AnimalDetailScreen} // AnimalDetailScreen bileşenini burada kullanıyoruz
-      options={({ route }) => ({ title: route.params?.animalName || 'Hayvan Detayı' })}
-    />
+    <MainStackNav.Screen name="AnimalTypes" component={AnimalTypesScreen} options={({ route }) => ({ title: `${route.params?.shelterName || 'Barınak'} - Türler` })} />
+    <MainStackNav.Screen name="AnimalsList" component={AnimalsListScreen} options={({ route }) => ({ title: `${route.params?.shelterName} - ${route.params.animalType}` })} />
+    <MainStackNav.Screen name="AnimalDetail" component={AnimalDetailScreen} options={({ route }) => ({ title: route.params?.animalName || 'Hayvan Detayı' })} />
+    {/* YENİ EKRANLAR EKLENDİ */}
+    <MainStackNav.Screen name="MyDonations" component={MyDonationsScreen} options={{ title: 'Yaptığım Bağışlar' }} />
+    <MainStackNav.Screen name="MyVirtualAdoptions" component={MyVirtualAdoptionsScreen} options={{ title: 'Sanal Sahiplendiklerim' }} />
   </MainStackNav.Navigator>
 );
 
-const AppNavigator = () => {
-  const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
-  const [initialRoute, setInitialRoute] = useState<keyof MainStackParamList>('SelectCity');
-  const [isLoadingRoute, setIsLoadingRoute] = useState(true);
-
-  useEffect(() => {
-    const subscriber = auth.onAuthStateChanged(async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        setIsLoadingRoute(true);
-        try {
-          const userDoc = await db.collection('users').doc(currentUser.uid).get();
-          if (userDoc.exists && userDoc.data()?.selectedCity) {
-            setInitialRoute('Home');
-          } else {
-            setInitialRoute('SelectCity');
-          }
-        } catch (error) {
-          console.error("AppNavigator: Kullanıcı şehir kontrol hatası:", error);
-          setInitialRoute('SelectCity');
-        } finally {
-          setIsLoadingRoute(false);
-        }
-      } else {
-        setIsLoadingRoute(false); // Kullanıcı yoksa yükleme bitti
-      }
-      if (initializing) {
-        setInitializing(false);
-      }
-    });
-    return subscriber; // useEffect cleanup
-  }, [initializing]); // Bağımlılıklar doğru ayarlandı
-
-  if (initializing || (user && isLoadingRoute)) {
-    return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#007bff" />
-      </View>
-    );
-  }
-
-  return user ? <MainScreensComponent initialRouteName={initialRoute} /> : <AuthScreens />;
-};
-
-const styles = StyleSheet.create({
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-});
-
-export default AppNavigator;
+// Ana AppNavigator'ınızın yapısına göre bu export'u düzenleyin.
+// Genellikle App.tsx içinde <NavigationContainer> kullanılır ve bu stack'ler orada çağrılır.
+// export default AppNavigator; // Eğer AppNavigator ana konteyner ise

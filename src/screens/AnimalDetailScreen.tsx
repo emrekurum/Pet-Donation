@@ -8,42 +8,48 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-// ----- 🔥 FIREBASE IMPORTLARI - Kendi projenize göre aktif edin ve yapılandırın 🔥 -----
 import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
-// ----- 🔥 FIREBASE IMPORTLARI BİTİŞ 🔥 -----
 
-// ----- 🧭 NAVİGASYON TİPLERİ - Kendi AppNavigator'ınızdaki ile değiştirin 🧭 -----
-type MainStackParamList = {
-  Home: undefined;
-  UserProfile: { userId: string };
-  AnimalDetail: { animalId: string; animalName?: string };
-  // ... diğer ekranlarınız
+import { MainStackParamList } from '../navigation/AppNavigator'; // Navigasyon tipleriniz
+
+// Sabit item bedelleri (TL cinsinden)
+const DONATION_ITEM_COSTS: { [key: string]: number } = {
+  'Mama': 50,
+  'Oyuncak': 30,
+  'İlaç': 75,
 };
+
 type Props = NativeStackScreenProps<MainStackParamList, 'AnimalDetail'>;
-// ----- 🧭 NAVİGASYON TİPLERİ BİTİŞ 🧭 -----
 
-// --- Diğer Importlar ve Yardımcı Bileşenler ---
-const Icon = ({ name, size, style }: { name: string, size: number, style?: any }) => (
-  <Text style={[{ fontSize: size, color: colors.primary }, style]}>[{name.substring(0,1).toUpperCase()}]</Text>
-);
-const MapViewPlaceholder = () => (
-    <View style={componentStyles.mapPlaceholder}>
-        <Text style={componentStyles.mapPlaceholderText}>Harita özelliği için 'react-native-maps' kurulumu gereklidir.</Text>
-    </View>
-);
+interface AnimalDetails {
+  id: string; name?: string; type?: string; breed?: string; age?: number | string;
+  imageUrl?: string; photos?: string[]; description?: string;
+  shelterId?: string; shelterName?: string; needs?: string[];
+  virtualAdoptersCount?: number;
+}
+interface ShelterDetails {
+  id: string; name?: string; contactPhone?: string; contactEmail?: string; address?: string;
+}
+interface DonationFormData {
+    type: string;
+    amountInput: string;
+    description: string;
+}
+interface InfoRowProps { label: string; value: string | number | undefined; }
 
+// Renkler ve Ana Stil Tanımlamaları
 const { width, height } = Dimensions.get('window');
-
-// Renkler ve Stil Tanımlamaları (Öncekiyle aynı)
-const colors = { /* ... renkler ... */
+const colors = {
   primary: '#007bff', primaryDark: '#0056b3', secondary: '#6c757d',
   accent: '#28a745', accentYellow: '#ffc107', accentDark: '#1e7e34',
   background: '#f0f2f5', surface: '#ffffff', textPrimary: '#212529',
   textSecondary: '#495057', textLight: '#ffffff', textDark: '#333333',
   error: '#dc3545', border: '#dee2e6', shadow: '#000', disabled: '#bdc3c7',
+  depositGreen: '#20c997', donationRed: '#e74c3c',
 };
-const componentStyles = StyleSheet.create({ /* ... stiller ... */
+
+const componentStyles = StyleSheet.create({
   scrollView: { flex: 1, backgroundColor: colors.background },
   container: { paddingBottom: 30 },
   loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
@@ -92,25 +98,31 @@ const componentStyles = StyleSheet.create({ /* ... stiller ... */
   modalButton: { borderRadius: 8, paddingVertical: 12, paddingHorizontal: 20, elevation: 2, flex:1, marginHorizontal:5, alignItems: 'center' },
   modalButtonClose: { backgroundColor: colors.secondary },
   modalButtonSubmit: { backgroundColor: colors.accent },
-  modalButtonText: { color: colors.textLight, fontWeight: "bold", textAlign: "center", fontSize: 16 }
+  // DÜZELTME: modalButtonText stili burada tanımlı olmalı ve yorum satırı olmamalı
+  modalButtonText: { color: colors.textLight, fontWeight: "bold", textAlign: "center", fontSize: 16 },
 });
 
-interface AnimalDetails {
-  id: string; name?: string; type?: string; breed?: string; age?: number | string;
-  imageUrl?: string; photos?: string[]; description?: string;
-  shelterId?: string; shelterName?: string; needs?: string[];
-  virtualAdoptersCount?: number;
-}
-interface ShelterDetails {
-  id: string; name?: string; contactPhone?: string; contactEmail?: string; address?: string;
-}
-interface DonationData { type: string; amount?: string; description?: string; }
-interface InfoRowProps { label: string; value: string | number | undefined; }
-
 const InfoRow: React.FC<InfoRowProps> = ({ label, value }) => {
-    if (value === undefined || value === null || String(value).trim() === '') return null;
-    return ( <View style={componentStyles.infoRow}><Text style={componentStyles.infoLabel}>{label}:</Text><Text style={componentStyles.infoValue}>{String(value)}</Text></View> );
+    const displayValue = (value === null || value === undefined || String(value).trim() === '')
+        ? 'Belirtilmemiş'
+        : String(value);
+    return (
+        <View style={componentStyles.infoRow}>
+            <Text style={componentStyles.infoLabel}>{label}:</Text>
+            <Text style={componentStyles.infoValue}>{displayValue}</Text>
+        </View>
+    );
 };
+
+const Icon = ({ name, size, style }: { name: string, size: number, style?: any }) => (
+  <Text style={[{ fontSize: size, color: colors.primary }, style]}>[{name.substring(0,1).toUpperCase()}]</Text>
+);
+
+const MapViewPlaceholder = () => (
+    <View style={componentStyles.mapPlaceholder}>
+        <Text style={componentStyles.mapPlaceholderText}>Harita özelliği için 'react-native-maps' kurulumu gereklidir.</Text>
+    </View>
+);
 
 const AnimalDetailScreen = ({ route, navigation }: Props) => {
   const { animalId } = route.params;
@@ -118,92 +130,199 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
   const [shelterInfo, setShelterInfo] = useState<ShelterDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [donationData, setDonationData] = useState<DonationData>({ type: 'Mama', amount: '', description: '' });
+  const [donationForm, setDonationForm] = useState<DonationFormData>({
+    type: 'Mama',
+    amountInput: '',
+    description: '',
+  });
   const [isSubmittingDonation, setIsSubmittingDonation] = useState(false);
   const [isAdoptingVirtually, setIsAdoptingVirtually] = useState(false);
   const [hasAlreadyAdopted, setHasAlreadyAdopted] = useState(false);
+  const [userWalletBalance, setUserWalletBalance] = useState<number>(0);
+  const [loadingWallet, setLoadingWallet] = useState(false);
 
   const currentUser: FirebaseAuthTypes.User | null = auth().currentUser;
 
   const donationTypes = [
-    { label: 'Mama Bağışı', value: 'Mama' }, { label: 'Maddi Bağış', value: 'Nakit' },
-    { label: 'Oyuncak Bağışı', value: 'Oyuncak' }, { label: 'İlaç/Veteriner Desteği', value: 'İlaç' },
-    { label: 'Diğer', value: 'Diğer' },
+    { label: `Mama Bağışı (${DONATION_ITEM_COSTS['Mama']} TL)`, value: 'Mama' },
+    { label: 'Nakit Bağış', value: 'Nakit' },
+    { label: `Oyuncak Bağışı (${DONATION_ITEM_COSTS['Oyuncak']} TL)`, value: 'Oyuncak' },
+    { label: `İlaç/Veteriner Desteği (${DONATION_ITEM_COSTS['İlaç']} TL)`, value: 'İlaç' },
+    { label: 'Diğer (Açıklama ve Miktar Girin)', value: 'Diğer' },
   ];
 
   const fetchData = useCallback(async () => {
-    if (!animalId) { Alert.alert("Hata", "Hayvan ID'si bulunamadı."); if (navigation.canGoBack()) navigation.goBack(); setLoading(false); return; }
-    console.log(`Firebase'den ${animalId} ID'li hayvan çekiliyor...`);
+    if (!animalId) {
+      Alert.alert("Hata", "Hayvan ID'si bulunamadı.");
+      if (navigation.canGoBack()) navigation.goBack();
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const animalDocRef = firestore().collection('animals').doc(animalId);
       const docSnapshot = await animalDocRef.get();
+
       if (docSnapshot.exists) {
         const animalDataTemp = { id: docSnapshot.id, ...docSnapshot.data() } as AnimalDetails;
         setAnimal(animalDataTemp);
         if (animalDataTemp.shelterId) {
           const shelterDoc = await firestore().collection('shelters').doc(animalDataTemp.shelterId).get();
-          if (shelterDoc.exists) { setShelterInfo({ id: shelterDoc.id, ...shelterDoc.data() } as ShelterDetails); }
+          if (shelterDoc.exists) {
+            setShelterInfo({ id: shelterDoc.id, ...shelterDoc.data() } as ShelterDetails);
+          }
         }
         if (currentUser) {
           const adoptionQuery = firestore().collection('virtualAdoptions').where('userId', '==', currentUser.uid).where('animalId', '==', animalId).limit(1);
           const adoptionSnapshot = await adoptionQuery.get();
           setHasAlreadyAdopted(!adoptionSnapshot.empty);
         }
-      } else { Alert.alert("Bulunamadı", `"${animalId}" ID'li hayvan bilgisi bulunamadı.`); setAnimal(null); }
-    } catch (error: any) { console.error(`Hayvan verisi çekme hatası (${animalId}): `, error); Alert.alert("Veri Çekme Hatası", "Hayvan bilgileri yüklenirken bir sorun oluştu."); setAnimal(null); }
-    finally { setLoading(false); }
+      } else {
+        Alert.alert("Bulunamadı", `"${animalId}" ID'li hayvan bilgisi bulunamadı.`);
+        setAnimal(null);
+      }
+    } catch (error: any) {
+      console.error(`Hayvan verisi çekme hatası (${animalId}): `, error);
+      Alert.alert("Veri Çekme Hatası", "Hayvan bilgileri yüklenirken bir sorun oluştu.");
+      setAnimal(null);
+    } finally {
+      setLoading(false);
+    }
   }, [animalId, currentUser, navigation]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleOpenDonationModal = () => { setModalVisible(true); setDonationData({ type: 'Mama', amount: '', description: '' }); };
+  const fetchUserWalletBalance = useCallback(async () => {
+    if (currentUser) {
+      setLoadingWallet(true);
+      try {
+        const userDoc = await firestore().collection('users').doc(currentUser.uid).get();
+        if (userDoc.exists) {
+          setUserWalletBalance(userDoc.data()?.walletBalance || 0);
+        } else {
+          setUserWalletBalance(0);
+        }
+      } catch (error) {
+        console.error("Cüzdan bakiyesi çekilirken hata:", error);
+        setUserWalletBalance(0);
+      } finally {
+        setLoadingWallet(false);
+      }
+    }
+   }, [currentUser]);
+
+  useEffect(() => {
+    fetchData();
+    if (modalVisible) {
+        fetchUserWalletBalance();
+    }
+  }, [fetchData, modalVisible, fetchUserWalletBalance]);
+
+  const handleOpenDonationModal = () => {
+    setDonationForm({ type: 'Mama', amountInput: '', description: '' });
+    setModalVisible(true);
+  };
 
   const handleDonationSubmit = async () => {
-    if (donationData.type === 'Nakit' && (!donationData.amount || isNaN(parseFloat(donationData.amount)) || parseFloat(donationData.amount) <= 0)) {
-      Alert.alert("Geçersiz Miktar", "Lütfen geçerli bir nakit bağış miktarı girin."); return;
-    }
     if (!currentUser) { Alert.alert("Giriş Gerekli", "Bağış yapmak için lütfen giriş yapın."); return; }
     if (!animal) { Alert.alert("Hata", "Hayvan bilgisi bulunamadı, bağış yapılamıyor."); return; }
 
+    let donationAmountValue: number;
+    let donationDescription = donationForm.description;
+
+    if (donationForm.type === 'Nakit') {
+      donationAmountValue = parseFloat(donationForm.amountInput);
+      if (isNaN(donationAmountValue) || donationAmountValue <= 0) {
+        Alert.alert("Geçersiz Miktar", "Lütfen geçerli bir nakit bağış miktarı girin.");
+        return;
+      }
+    } else if (DONATION_ITEM_COSTS[donationForm.type]) {
+      donationAmountValue = DONATION_ITEM_COSTS[donationForm.type];
+      if (!donationDescription) {
+        donationDescription = `${donationForm.type} Bağışı`;
+      }
+    } else if (donationForm.type === 'Diğer') {
+        donationAmountValue = parseFloat(donationForm.amountInput);
+        if (isNaN(donationAmountValue) || donationAmountValue <= 0) {
+            Alert.alert("Geçersiz Miktar", "'Diğer' bağış türü için lütfen geçerli bir miktar girin.");
+            return;
+        }
+        if (!donationDescription) {
+            Alert.alert("Açıklama Gerekli", "'Diğer' bağış türü için lütfen bir açıklama girin.");
+            return;
+        }
+    }
+     else {
+      Alert.alert("Geçersiz Bağış Türü", "Lütfen geçerli bir bağış türü seçin.");
+      return;
+    }
+
+    if (userWalletBalance < donationAmountValue) {
+      Alert.alert("Yetersiz Bakiye", `Cüzdanınızda yeterli bakiye bulunmuyor. Mevcut bakiye: ${userWalletBalance.toFixed(2)} TL`);
+      return;
+    }
+
     setIsSubmittingDonation(true);
     try {
-      const newDonationData: FirebaseFirestoreTypes.DocumentData = {
-        // ----- 🔥 DÜZELTME: userId eklendi 🔥 -----
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email || 'Bilinmeyen Kullanıcı', // Kullanıcı adı/email
-        animalId: animal.id,
-        animalName: animal.name ?? 'Bilinmiyor',
-        shelterId: animal.shelterId ?? '',
-        shelterName: shelterInfo?.name || animal.shelterName || 'Bilinmiyor', // Barınak adı
-        donationType: donationData.type,
-        // ----- 🔥 DÜZELTME: 'timestamp' yerine 'donationDate' kullanıldı 🔥 -----
-        donationDate: firestore.FieldValue.serverTimestamp(), // ProfileScreen'deki sorguyla eşleşmesi için
-        status: 'completed', // veya 'pending'
-      };
+      const userDocRef = firestore().collection('users').doc(currentUser.uid);
+      const donationDocRef = firestore().collection('donations').doc();
+      const walletTransactionDocRef = firestore().collection('walletTransactions').doc();
 
-      if (donationData.type === 'Nakit' && donationData.amount) {
-        newDonationData.amount = parseFloat(donationData.amount);
-        newDonationData.currency = 'TL';
-      } else if (donationData.description) { // Maddi olmayan bağışlar için açıklama
-        newDonationData.description = donationData.description;
-      }
+      await firestore().runTransaction(async (transaction) => {
+        const userSnapshot = await transaction.get(userDocRef);
+        if (!userSnapshot.exists) {
+          throw "Kullanıcı bulunamadı!";
+        }
+        const currentBalance = (userSnapshot.data()?.walletBalance || 0) as number;
+        if (currentBalance < donationAmountValue) {
+          throw "Yetersiz bakiye!";
+        }
+        transaction.update(userDocRef, {
+          walletBalance: currentBalance - donationAmountValue,
+        });
 
-      console.log("Firestore'a yazılacak bağış verisi:", newDonationData);
-      await firestore().collection('donations').add(newDonationData);
+        const donationPayload: FirebaseFirestoreTypes.DocumentData = {
+          userId: currentUser.uid,
+          userName: currentUser.displayName || currentUser.email || 'Bilinmeyen Kullanıcı',
+          animalId: animal.id,
+          animalName: animal.name ?? 'Bilinmiyor',
+          shelterId: animal.shelterId ?? '',
+          shelterName: shelterInfo?.name || animal.shelterName || 'Bilinmiyor',
+          donationType: donationForm.type,
+          amount: donationAmountValue,
+          currency: 'TL',
+          description: donationDescription,
+          donationDate: firestore.FieldValue.serverTimestamp(),
+          status: 'completed',
+          paymentMethod: 'wallet',
+        };
+        transaction.set(donationDocRef, donationPayload);
 
-      Alert.alert("Bağış Başarılı!", "Bağışınız için teşekkür ederiz.");
+        transaction.set(walletTransactionDocRef, {
+          userId: currentUser.uid,
+          type: 'donation',
+          amount: donationAmountValue,
+          description: `${animal.name || 'Hayvan'} için ${donationForm.type} bağışı`,
+          relatedAnimalId: animal.id,
+          relatedShelterId: animal.shelterId ?? '',
+          relatedDonationId: donationDocRef.id,
+          transactionDate: firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      Alert.alert("Bağış Başarılı!", "Bağışınız için teşekkür ederiz. Cüzdanınızdan düşüldü.");
       setModalVisible(false);
-      setDonationData({ type: 'Mama', amount: '', description: '' });
+      setDonationForm({ type: 'Mama', amountInput: '', description: '' });
+      fetchUserWalletBalance();
+
     } catch (error) {
-      console.error("Bağış gönderme hatası: ", error);
-      Alert.alert("Hata", "Bağış gönderilirken bir sorun oluştu.");
+      console.error("Bağış gönderme hatası (cüzdan): ", error);
+      Alert.alert("Hata", `Bağış gönderilirken bir sorun oluştu: ${error}`);
     } finally {
       setIsSubmittingDonation(false);
     }
   };
 
-  const handleVirtualAdoption = async () => { /* ... (önceki gibi) ... */ };
+  const handleVirtualAdoption = async () => { /* ... */ };
   const renderPhotoItem = ({ item }: { item: string }) => ( <Image source={{ uri: item }} style={componentStyles.galleryImage} resizeMode="cover" /> );
 
   if (loading) { return <View style={componentStyles.loaderContainer}><ActivityIndicator size="large" color={colors.primary} /></View>; }
@@ -211,11 +330,12 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
 
   const displayImages = animal.photos && animal.photos.length > 0 ? animal.photos : (animal.imageUrl ? [animal.imageUrl] : []);
   const submitButtonContent = isSubmittingDonation ? <ActivityIndicator color="#fff" /> : <Text style={componentStyles.modalButtonText}>Bağışı Tamamla</Text>;
+  const selectedDonationCost = DONATION_ITEM_COSTS[donationForm.type];
+  const isNakitOrOther = donationForm.type === 'Nakit' || donationForm.type === 'Diğer';
 
   return (
     <ScrollView style={componentStyles.scrollView}>
-      <View style={componentStyles.container}>
-        {/* ... (JSX'in geri kalanı öncekiyle aynı) ... */}
+        <View style={componentStyles.container}>
         {displayImages.length > 0 ? (
           <FlatList data={displayImages} renderItem={renderPhotoItem} keyExtractor={(item, index) => `photo-${animal.id}-${index}`} horizontal showsHorizontalScrollIndicator={false} pagingEnabled style={componentStyles.imageGallery} />
         ) : (
@@ -262,34 +382,74 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
             </TouchableOpacity>
         </View>
       </View>
-
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => { if (!isSubmittingDonation) { setModalVisible(!modalVisible); } }} >
         <View style={componentStyles.centeredView}>
             <View style={componentStyles.modalView}>
                 <Text style={componentStyles.modalTitle}>{(animal && animal.name) || 'Dostumuz'} İçin Bağış Yap</Text>
+                {loadingWallet ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.walletBalanceText}>Cüzdan Bakiyeniz: {userWalletBalance.toFixed(2)} TL</Text> }
+
                 <View style={componentStyles.inputGroup}>
                     <Text style={componentStyles.modalLabel}>Bağış Türü:</Text>
                     <View style={componentStyles.pickerContainer}>
-                        <Picker selectedValue={donationData.type} style={componentStyles.picker} onValueChange={(itemValue) => setDonationData(prev => ({...prev, type: itemValue, amount: '', description: ''}))} enabled={!isSubmittingDonation} dropdownIconColor={colors.textSecondary}>
+                        <Picker
+                            selectedValue={donationForm.type}
+                            style={componentStyles.picker}
+                            onValueChange={(itemValue) => setDonationForm(prev => ({...prev, type: itemValue, amountInput: '', description: ''}))}
+                            enabled={!isSubmittingDonation}
+                            dropdownIconColor={colors.textSecondary}>
                             {donationTypes.map((type) => ( <Picker.Item key={type.value} label={type.label} value={type.value} /> ))}
                         </Picker>
                     </View>
                 </View>
-                {donationData.type === 'Nakit' && (
+
+                {!isNakitOrOther && selectedDonationCost !== undefined && (
                     <View style={componentStyles.inputGroup}>
-                        <Text style={componentStyles.modalLabel}>Miktar (TL):</Text>
-                        <TextInput style={componentStyles.modalInput} placeholder="Örn: 50" keyboardType="numeric" value={donationData.amount} onChangeText={(text) => setDonationData(prev => ({...prev, amount: text}))} editable={!isSubmittingDonation} />
+                        <Text style={componentStyles.modalLabel}>Bağış Bedeli:</Text>
+                        <TextInput
+                            style={[componentStyles.modalInput, styles.disabledInput]}
+                            value={`${selectedDonationCost.toFixed(2)} TL`}
+                            editable={false}
+                        />
                     </View>
                 )}
-                {(donationData.type === 'Mama' || donationData.type === 'İlaç' || donationData.type === 'Diğer') && (
+
+                {(isNakitOrOther || donationForm.type === 'Diğer') && (
+                    <View style={componentStyles.inputGroup}>
+                        <Text style={componentStyles.modalLabel}>{donationForm.type === 'Diğer' ? 'Bağış Miktarı (TL - İsteğe Bağlı)' : 'Miktar (TL):'}</Text>
+                        <TextInput
+                            style={componentStyles.modalInput}
+                            placeholder={donationForm.type === 'Diğer' ? "0.00 (Belirtmek isterseniz)" : "0.00"}
+                            keyboardType="numeric"
+                            value={donationForm.amountInput}
+                            onChangeText={(text) => setDonationForm(prev => ({...prev, amountInput: text}))}
+                            editable={!isSubmittingDonation}
+                        />
+                    </View>
+                )}
+
+                {(donationForm.type === 'Mama' || donationForm.type === 'İlaç' || donationForm.type === 'Oyuncak' || donationForm.type === 'Diğer') && (
                      <View style={componentStyles.inputGroup}>
-                        <Text style={componentStyles.modalLabel}>Bağış Açıklaması (isteğe bağlı):</Text>
-                        <TextInput style={[componentStyles.modalInput, componentStyles.modalTextarea]} placeholder={`Örn: 1 paket ${donationData.type.toLowerCase()} veya detay`} multiline numberOfLines={3} value={donationData.description} onChangeText={(text) => setDonationData(prev => ({...prev, description: text}))} editable={!isSubmittingDonation} />
+                        <Text style={componentStyles.modalLabel}>
+                            {donationForm.type === 'Diğer' ? 'Bağış Açıklaması (Gerekli):' : 'Bağış Açıklaması (isteğe bağlı):'}
+                        </Text>
+                        <TextInput
+                            style={[componentStyles.modalInput, componentStyles.modalTextarea]}
+                            placeholder={
+                                donationForm.type === 'Diğer'
+                                ? "Lütfen bağışınızın ne olduğunu açıklayın."
+                                : `Örn: 1 paket ${donationForm.type.toLowerCase()} veya özel bir not`
+                            }
+                            multiline
+                            numberOfLines={3}
+                            value={donationForm.description}
+                            onChangeText={(text) => setDonationForm(prev => ({...prev, description: text}))}
+                            editable={!isSubmittingDonation}
+                        />
                     </View>
                 )}
                 <View style={componentStyles.modalButtonContainer}>
                     <TouchableOpacity style={[componentStyles.modalButton, componentStyles.modalButtonClose]} onPress={() => setModalVisible(!modalVisible)} disabled={isSubmittingDonation} ><Text style={componentStyles.modalButtonText}>İptal</Text></TouchableOpacity>
-                    <TouchableOpacity style={[componentStyles.modalButton, componentStyles.modalButtonSubmit, isSubmittingDonation && componentStyles.disabledButton]} onPress={handleDonationSubmit} disabled={isSubmittingDonation} >{submitButtonContent}</TouchableOpacity>
+                    <TouchableOpacity style={[componentStyles.modalButton, componentStyles.modalButtonSubmit, isSubmittingDonation && componentStyles.disabledButton]} onPress={handleDonationSubmit} disabled={isSubmittingDonation || loadingWallet} >{submitButtonContent}</TouchableOpacity>
                 </View>
             </View>
         </View>
@@ -297,5 +457,21 @@ const AnimalDetailScreen = ({ route, navigation }: Props) => {
     </ScrollView>
   );
 };
+
+// DÜZELTME: 'styles' objesi 'componentStyles'ı doğru şekilde yayıyor ve ek stilleri tanımlıyor.
+const styles = StyleSheet.create({
+    ...componentStyles, // Önceki tüm stiller buraya dahil edildi
+    walletBalanceText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: colors.textSecondary,
+        marginBottom: 15,
+        textAlign: 'center',
+    },
+    disabledInput: {
+        backgroundColor: '#e9ecef', // Daha açık bir gri
+        color: colors.textSecondary, // Metin rengi
+    }
+});
 
 export default AnimalDetailScreen;

@@ -1,13 +1,12 @@
 // src/navigation/AppNavigator.tsx
 import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-// import { NavigationContainer } from '@react-navigation/native'; // REMOVED from here
 import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 
-// Screen imports (ensure these paths are correct and components are default exported)
+// Ekranlar
 import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -58,7 +57,7 @@ const defaultMainStackScreenOptions: NativeStackNavigationOptions = {
   headerTitleStyle: { fontWeight: 'bold' },
 };
 
-const MainScreensStack = ({ initialRouteName }: { initialRouteName: keyof MainStackParamList }) => (
+const MainScreensStackComponent = ({ initialRouteName }: { initialRouteName: keyof MainStackParamList }) => (
   <MainStackNav.Navigator
     initialRouteName={initialRouteName}
     screenOptions={defaultMainStackScreenOptions}
@@ -67,9 +66,27 @@ const MainScreensStack = ({ initialRouteName }: { initialRouteName: keyof MainSt
     <MainStackNav.Screen name="SelectCity" component={SelectCityScreen} options={{ title: 'Şehir Seç' }} />
     <MainStackNav.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profilim' }} />
     <MainStackNav.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Profili Düzenle' }} />
-    <MainStackNav.Screen name="AnimalTypes" component={AnimalTypesScreen} options={({ route }) => ({ title: `${route.params?.shelterName || 'Barınak'} - Türler` })} />
-    <MainStackNav.Screen name="AnimalsList" component={AnimalsListScreen} options={({ route }) => ({ title: `${route.params?.shelterName} - ${route.params.animalType}` })} />
-    <MainStackNav.Screen name="AnimalDetail" component={AnimalDetailScreen} options={({ route }) => ({ title: route.params?.animalName || 'Hayvan Detayı' })} />
+    <MainStackNav.Screen
+      name="AnimalTypes"
+      component={AnimalTypesScreen}
+      options={({ route }) => ({
+        title: `${route.params?.shelterName || 'Barınak'} - Türler`,
+      })}
+    />
+    <MainStackNav.Screen
+      name="AnimalsList"
+      component={AnimalsListScreen}
+      options={({ route }) => ({
+        title: `${route.params?.shelterName} - ${route.params.animalType}`,
+      })}
+    />
+    <MainStackNav.Screen
+      name="AnimalDetail"
+      component={AnimalDetailScreen}
+      options={({ route }) => ({
+        title: route.params?.animalName || 'Hayvan Detayı',
+      })}
+    />
     <MainStackNav.Screen name="MyDonations" component={MyDonationsScreen} options={{ title: 'Yaptığım Bağışlar' }} />
     <MainStackNav.Screen name="MyVirtualAdoptions" component={MyVirtualAdoptionsScreen} options={{ title: 'Sanal Sahiplendiklerim' }} />
     <MainStackNav.Screen name="WalletScreen" component={WalletScreen} options={{ title: 'Cüzdanım' }} />
@@ -83,6 +100,7 @@ const AppNavigator = () => {
   const [isLoadingRoute, setIsLoadingRoute] = useState(true);
 
   function onAuthStateChanged(userAuth: FirebaseAuthTypes.User | null) {
+    console.log('[AppNavigator] onAuthStateChanged çağrıldı. User:', userAuth);
     setUser(userAuth);
     if (initializing) {
       setInitializing(false);
@@ -91,12 +109,12 @@ const AppNavigator = () => {
 
   useEffect(() => {
     const subscriber = auth().onAuthStateChanged(onAuthStateChanged);
-    return subscriber;
+    return subscriber; // Önemli! subscriber() değil.
   }, []);
 
   useEffect(() => {
-    const checkUserCity = async () => {
-      if (user && initializing === false) {
+    const checkUserCityAndSetRoute = async () => {
+      if (user && !initializing) {
         setIsLoadingRoute(true);
         try {
           const userDoc = await firestore().collection('users').doc(user.uid).get();
@@ -106,16 +124,16 @@ const AppNavigator = () => {
             setInitialRoute('SelectCity');
           }
         } catch (error) {
-          console.error("AppNavigator: Kullanıcı şehir kontrol hatası:", error);
+          console.error("[AppNavigator] Kullanıcı şehir kontrol hatası:", error);
           setInitialRoute('SelectCity');
         } finally {
           setIsLoadingRoute(false);
         }
-      } else if (!user && initializing === false) {
+      } else if (!user && !initializing) {
         setIsLoadingRoute(false);
       }
     };
-    checkUserCity();
+    checkUserCityAndSetRoute();
   }, [user, initializing]);
 
   if (initializing || (user && isLoadingRoute)) {
@@ -126,9 +144,11 @@ const AppNavigator = () => {
     );
   }
 
-  // This component now returns the conditional stacks directly,
-  // WITHOUT wrapping them in a NavigationContainer.
-  return user ? <MainScreensStack initialRouteName={initialRoute} /> : <AuthScreensStack />;
+  return user ? (
+    <MainScreensStackComponent key={`main-${user?.uid}`} initialRouteName={initialRoute} />
+  ) : (
+    <AuthScreensStack key="auth-stack" />
+  );
 };
 
 const styles = StyleSheet.create({

@@ -1,41 +1,29 @@
 // src/screens/RegisterScreen.tsx
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Alert,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TextInput, StyleSheet, Alert, TouchableOpacity,
+  ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform
 } from 'react-native';
-import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {auth, db} from '../api/firebase';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { auth, db } from '../api/firebase';
+import { Picker } from '@react-native-picker/picker'; // picker importu
 
-// AuthStackParamList tipini AppNavigator.tsx dosyasından import etmek daha iyi bir pratiktir.
 type AuthStackParamList = {
   Register: undefined;
   Login: undefined;
 };
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
-const RegisterScreen = ({navigation}: Props) => {
+const RegisterScreen = ({ navigation }: Props) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [gender, setGender] = useState<string>(''); // cinsiyet durumu
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (
-      !email.trim() ||
-      !password.trim() ||
-      !confirmPassword.trim() ||
-      !displayName.trim()
-    ) {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim() || !displayName.trim() || !gender) {
       Alert.alert('Hata', 'Lütfen tüm alanları doldurun.');
       return;
     }
@@ -43,13 +31,11 @@ const RegisterScreen = ({navigation}: Props) => {
       Alert.alert('Hata', 'Şifreler eşleşmiyor.');
       return;
     }
-    // E-posta formatı kontrolü (basit)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert('Hata', 'Lütfen geçerli bir e-posta adresi girin.');
       return;
     }
-    // Şifre uzunluğu kontrolü
     if (password.length < 6) {
       Alert.alert('Hata', 'Şifreniz en az 6 karakter olmalıdır.');
       return;
@@ -57,46 +43,40 @@ const RegisterScreen = ({navigation}: Props) => {
 
     setLoading(true);
     try {
-      const userCredential = await auth.createUserWithEmailAndPassword(
-        email.trim(),
-        password,
-      );
+      const userCredential = await auth.createUserWithEmailAndPassword(email.trim(), password);
       const user = userCredential.user;
 
       if (user) {
-        await user.updateProfile({
-          displayName: displayName.trim(),
-        });
+        await user.updateProfile({ displayName: displayName.trim() });
 
-        // Firestore'a kullanıcı bilgilerini kaydetme
+        // Firestore'a kullanıcı verisi kaydı
         await db.collection('users').doc(user.uid).set({
           uid: user.uid,
-          email: user.email?.toLowerCase(), // E-postayı küçük harfe çevirerek sakla
+          email: user.email?.toLowerCase(),
           displayName: displayName.trim(),
-          createdAt: new Date(), // Veya Firebase.firestore.FieldValue.serverTimestamp()
+          gender: gender, // ✅ cinsiyet bilgisi eklendi
+          createdAt: new Date(),
           profileImageUrl: null,
           age: null,
           location: null,
-          bio: null, // Kullanıcı hakkında kısa bilgi
+          bio: null,
         });
 
-        Alert.alert(
-          'Kayıt Başarılı!',
-          'Hesabınız başarıyla oluşturuldu. Lütfen giriş yapın.',
-          [{text: 'Tamam', onPress: () => navigation.replace('Login')}], // Kayıt sonrası Login ekranına yönlendir ve geri dönemesin
-        );
+        Alert.alert('Kayıt Başarılı!', 'Hesabınız oluşturuldu. Giriş yapabilirsiniz.', [
+          { text: 'Tamam', onPress: () => navigation.replace('Login') },
+        ]);
       }
     } catch (error: any) {
       let errorMessage = 'Bilinmeyen bir hata oluştu.';
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'Bu e-posta adresi zaten kullanımda.';
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Geçersiz e-posta adresi formatı.';
+        errorMessage = 'Geçersiz e-posta adresi.';
       } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Şifre çok zayıf. Lütfen en az 6 karakter kullanın.';
+        errorMessage = 'Şifre çok zayıf.';
       } else {
-        console.error('Kayıt Hatası Detayı:', error);
-        errorMessage = 'Kayıt sırasında bir sorun oluştu: ' + error.message;
+        console.error('Kayıt Hatası:', error);
+        errorMessage = 'Kayıt sırasında hata: ' + error.message;
       }
       Alert.alert('Kayıt Başarısız', errorMessage);
     } finally {
@@ -105,12 +85,11 @@ const RegisterScreen = ({navigation}: Props) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.keyboardAvoidingContainer}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingContainer}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.container}>
           <Text style={styles.title}>Hesap Oluştur</Text>
+
           <TextInput
             style={styles.input}
             placeholder="Adınız Soyadınız"
@@ -119,6 +98,7 @@ const RegisterScreen = ({navigation}: Props) => {
             autoCapitalize="words"
             placeholderTextColor="#888"
           />
+
           <TextInput
             style={styles.input}
             placeholder="E-posta Adresiniz"
@@ -129,6 +109,7 @@ const RegisterScreen = ({navigation}: Props) => {
             autoCorrect={false}
             placeholderTextColor="#888"
           />
+
           <TextInput
             style={styles.input}
             placeholder="Şifreniz (en az 6 karakter)"
@@ -137,6 +118,7 @@ const RegisterScreen = ({navigation}: Props) => {
             secureTextEntry
             placeholderTextColor="#888"
           />
+
           <TextInput
             style={styles.input}
             placeholder="Şifrenizi Tekrar Girin"
@@ -145,20 +127,30 @@ const RegisterScreen = ({navigation}: Props) => {
             secureTextEntry
             placeholderTextColor="#888"
           />
+
+          <Text style={styles.label}>Cinsiyet</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={gender}
+              onValueChange={(itemValue) => setGender(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="Cinsiyet Seçiniz..." value="" />
+              <Picker.Item label="Erkek" value="Erkek" />
+              <Picker.Item label="Kadın" value="Kadın" />
+              <Picker.Item label="Taarruz Helikopteri" value="Taarruz Helikopteri" />
+            </Picker>
+          </View>
+
           {loading ? (
-            <ActivityIndicator
-              size="large"
-              color="#007bff"
-              style={styles.loader}
-            />
+            <ActivityIndicator size="large" color="#007bff" style={styles.loader} />
           ) : (
             <TouchableOpacity style={styles.button} onPress={handleRegister}>
               <Text style={styles.buttonText}>Kayıt Ol</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Login')}
-            disabled={loading}>
+
+          <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
             <Text style={styles.link}>Zaten hesabın var mı? Giriş yap</Text>
           </TouchableOpacity>
         </View>
@@ -168,25 +160,10 @@ const RegisterScreen = ({navigation}: Props) => {
 };
 
 const styles = StyleSheet.create({
-  keyboardAvoidingContainer: {
-    flex: 1,
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  container: {
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    textAlign: 'center',
-    color: '#333',
-  },
+  keyboardAvoidingContainer: { flex: 1 },
+  scrollContainer: { flexGrow: 1, justifyContent: 'center' },
+  container: { justifyContent: 'center', padding: 20, backgroundColor: '#f5f5f5' },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 24, textAlign: 'center', color: '#333' },
   input: {
     height: 50,
     borderColor: '#ddd',
@@ -198,27 +175,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  label: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 6,
+    marginLeft: 2,
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 15,
+    backgroundColor: '#fff',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+    color: '#333',
+  },
   button: {
-    backgroundColor: '#28a745', // Yeşil kayıt butonu
+    backgroundColor: '#28a745',
     paddingVertical: 15,
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 15,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  link: {
-    marginTop: 12,
-    color: '#007bff',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  loader: {
-    marginVertical: 20,
-  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  link: { marginTop: 12, color: '#007bff', textAlign: 'center', fontSize: 14 },
+  loader: { marginVertical: 20 },
 });
 
 export default RegisterScreen;

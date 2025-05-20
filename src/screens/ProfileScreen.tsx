@@ -13,9 +13,15 @@ import { MainStackParamList } from '../navigation/AppNavigator';
 type Props = NativeStackScreenProps<MainStackParamList, 'Profile'>;
 
 interface UserProfile {
-  uid?: string; displayName?: string | null; email?: string | null;
-  age?: number | null; location?: string | null; selectedCity?: string | null;
-  profileImageUrl?: string | null; bio?: string | null;
+  uid?: string;
+  displayName?: string | null;
+  email?: string | null;
+  age?: number | null;
+  location?: string | null;
+  selectedCity?: string | null;
+  profileImageUrl?: string | null;
+  bio?: string | null;
+  gender?: string | null; // ✅ Eklendi
   walletBalance?: number;
   createdAt?: FirebaseFirestoreTypes.Timestamp | Date;
 }
@@ -151,6 +157,7 @@ const ProfileScreen = ({ navigation }: Props) => {
         <View style={styles.infoSection}>
           <InfoRow label="Yaş" value={userProfile?.age ? userProfile.age.toString() : undefined} />
           <InfoRow label="Yaşadığı Şehir" value={userProfile?.selectedCity ?? undefined} />
+          <InfoRow label="Cinsiyet" value={userProfile?.gender ?? undefined} /> 
           <InfoRow label="Hakkımda" value={userProfile?.bio ?? undefined} />
         </View>
 

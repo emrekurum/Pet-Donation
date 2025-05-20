@@ -1,265 +1,156 @@
-# Hayvan Dostları - Mobil Bağış Platformu
+# Pet Friends - Mobile Donation Platform
 
 [![React Native](https://img.shields.io/badge/React%20Native-0.60%2B-61DAFB?logo=react&logoColor=white)](https://reactnative.dev/)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%26%20Auth-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
-Bu proje, React Native ve Firebase kullanılarak geliştirilmiş, kullanıcıların barınaklardaki hayvanları görüntülemesine, çeşitli bağışlar yapmasına ve onları sanal olarak sahiplenmesine olanak tanıyan bir mobil uygulamadır.
 
-## 🐾 Temel Özellikler
+This project is a mobile application built with React Native and Firebase, allowing users to view animals in shelters, make various donations, and virtually adopt them.
 
-* **Hayvan Listeleme ve Detay Görüntüleme:** Barınaklardaki hayvanları tür, cins, yaş gibi bilgilerle listeleyin ve detaylı profillerini (açıklama, ihtiyaçlar, barınak bilgisi) inceleyin.
-* **Dinamik Bağış Sistemi:**
-    * Belirli hayvanlar için mama, oyuncak, ilaç gibi ürün bağışları veya nakit bağış yapın.
-    * Bağış kalemlerinin fiyatları Firebase'den dinamik olarak çekilir.
-* **Cüzdan Sistemi:** Kullanıcıların uygulama içi cüzdanları aracılığıyla bağış yapmasını sağlayın. Bakiye yükleme ve harcama işlemleri takip edilir.
-* **Sanal Sahiplenme:** Kullanıcıların seçtikleri hayvanları sanal olarak sahiplenmelerine imkan tanıyın.
-* **Barınak Bilgileri:** Hayvanların bulunduğu barınakların iletişim bilgilerine (telefon, e-posta, adres) erişim sağlayın.
-* **Kullanıcı Kimlik Doğrulama:** Firebase Authentication ile güvenli kullanıcı girişi ve kaydı.
+## 🐾 Key Features
 
-## 🛠️ Kullanılan Teknolojiler
+* **Animal Listing & Detail View:** List shelter animals with details like species, breed, and age. View detailed profiles including description, needs, and shelter info.
+* **Dynamic Donation System:**
+  * Donate items (food, toys, medicine) or money to specific animals.
+  * Donation item prices are dynamically fetched from Firebase.
+* **Wallet System:** Users can donate using their in-app wallet. Balance top-up and spending are tracked.
+* **Virtual Adoption:** Allows users to virtually adopt selected animals.
+* **Shelter Information:** Access shelter contact info (phone, email, address).
+* **User Authentication:** Secure login and signup with Firebase Authentication.
 
-* **Frontend:** React Native
-* **Backend & Veritabanı:** Firebase
-    * Firebase Authentication (Kullanıcı kimlik doğrulama)
-    * Firebase Firestore (NoSQL Veritabanı)
-* **Navigasyon:** React Navigation (`@react-navigation/native-stack`)
-* **Firebase Entegrasyonu:** `@react-native-firebase/app`, `@react-native-firebase/auth`, `@react-native-firebase/firestore`
-* **UI Bileşenleri:** `@react-native-picker/picker`
-
-## 🔥 Firebase Kurulumu ve Veri Yapısı
-
-Bu projeyi çalıştırabilmek için kendi Firebase projenizi kurmanız ve aşağıdaki Firestore koleksiyon yapılarını oluşturmanız gerekmektedir:
-
-1.  **`users`**: Kullanıcı bilgilerini ve cüzdan bakiyelerini (`walletBalance`) saklar.
-    * Örnek Alanlar: `displayName`, `email`, `walletBalance` (number)
-
-2.  **`animals`**: Hayvanların detaylı bilgilerini içerir.
-    * Örnek Alanlar: `name`, `type`, `breed`, `age`, `imageUrl`, `photos` (array), `description`, `shelterId`, `shelterName`, `needs` (array), `virtualAdoptersCount` (number)
-
-3.  **`shelters`**: Barınak bilgilerini saklar.
-    * Örnek Alanlar: `name`, `contactPhone`, `contactEmail`, `address`
-
-4.  **`donationItemPrices`**: Bağışlanabilir ürünlerin birim fiyatlarını saklar. **Bu koleksiyonun adı ve içindeki alan adı önemlidir.**
-    * **Koleksiyon Adı:** `donationItemPrices`
-    * **Doküman ID'leri:** Bağış türünün anahtarı (Örn: `Mama`, `Oyuncak`, `İlaç`)
-    * **Doküman Alanları:**
-        * `name`: (String, isteğe bağlı, örn: "Kaliteli Kedi Maması")
-        * `unitPrice`: (Number, örn: `60`) - **Kod bu alanı `unitPrice` olarak beklemektedir.**
-
-5.  **`donations`**: Yapılan tüm bağışların kaydını tutar.
-    * Örnek Alanlar: `userId`, `userName`, `animalId`, `animalName`, `shelterId`, `shelterName`, `donationType`, `amount` (number), `currency` ("TL"), `description`, `quantity` (number, eğer ürün bazlıysa), `donationDate` (timestamp), `status`, `paymentMethod`
-
-6.  **`virtualAdoptions`**: Sanal sahiplenme kayıtlarını tutar.
-    * Örnek Alanlar: `userId`, `animalId`, `animalName`, `shelterId`, `adoptionDate` (timestamp), `status`
-
-7.  **`walletTransactions`**: Kullanıcı cüzdanlarındaki tüm para yatırma ve çekme (bağış yapma) işlemlerini kaydeder.
-    * Örnek Alanlar: `userId`, `type` ("deposit" veya "donation"), `amount` (number), `description`, `relatedAnimalId`, `relatedDonationId`, `transactionDate` (timestamp)
-
-## 🚀 Başlarken
-
-Projeyi yerel makinenizde kurmak ve çalıştırmak için aşağıdaki adımları izleyin:
-
-### Gereksinimler
-
-* Node.js (LTS sürümü önerilir)
-* npm veya Yarn
-* React Native CLI (`npm install -g react-native-cli` veya `yarn global add react-native-cli`)
-* Android Studio (Android için) ve/veya Xcode (iOS için)
-* Bir Firebase hesabı ve projesi
-
-### Kurulum
-
-1.  **Depoyu Klonlayın:**
-    ```bash
-    git clone [https://github.com/kullaniciAdiniz/repoAdiniz.git](https://github.com/kullaniciAdiniz/repoAdiniz.git)
-    cd repoAdiniz
-    ```
-
-2.  **Bağımlılıkları Yükleyin:**
-    ```bash
-    npm install
-    # veya
-    yarn install
-    ```
-
-3.  **Firebase Proje Kurulumu:**
-    * Firebase konsolunda yeni bir proje oluşturun.
-    * Projenize Android ve/veya iOS uygulaması ekleyin.
-    * **Android için:** `android/app/google-services.json` dosyasını Firebase'den indirin ve projenizdeki ilgili konuma yerleştirin.
-    * **iOS için:** `ios/Runner/GoogleService-Info.plist` dosyasını Firebase'den indirin ve projenizdeki ilgili konuma (Xcode üzerinden) ekleyin. `Podfile`'ı güncelleyin:
-        ```bash
-        cd ios
-        pod install --repo-update
-        cd ..
-        ```
-    * Firebase konsolunda **Authentication**'ı (E-posta/Şifre metoduyla) etkinleştirin.
-    * **Firestore Veritabanı** oluşturun ve yukarıda belirtilen koleksiyon yapılarını manuel olarak veya bir script ile oluşturun (özellikle `donationItemPrices` başlangıç için önemlidir).
-    * Firestore **Kurallarınızı** projenizin ihtiyaçlarına göre ayarlayın (geliştirme için daha esnek, üretim için daha sıkı kurallar).
-
-4.  **Uygulamayı Çalıştırma:**
-
-    * **Android için:**
-        ```bash
-        npx react-native run-android
-        # veya
-        yarn android
-        ```
-    * **iOS için:**
-        ```bash
-        npx react-native run-ios
-        # veya
-        yarn ios
-        ```
-
-## 📂 Proje Yapısı (Özet)
-Kodlama desteği
-
-Düşünme sürecini göster
-Harika bir fikir! GitHub için iyi bir README.md dosyası, projenizin ne hakkında olduğunu, nasıl kurulacağını ve kullanılacağını anlatır, ayrıca potansiyel katkıda bulunanlar için de yol gösterici olur.
-
-Projenizin mevcut özelliklerini ve teknolojilerini göz önünde bulundurarak sizin için bir README.md taslağı oluşturdum. Bu taslağı projenize özel detaylarla daha da geliştirebilirsiniz.
-
-Markdown
-
-# Hayvan Dostları - Mobil Bağış Platformu
-
-[![React Native](https://img.shields.io/badge/React%20Native-0.60%2B-61DAFB?logo=react&logoColor=white)](https://reactnative.dev/)
-[![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%26%20Auth-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
-Bu proje, React Native ve Firebase kullanılarak geliştirilmiş, kullanıcıların barınaklardaki hayvanları görüntülemesine, çeşitli bağışlar yapmasına ve onları sanal olarak sahiplenmesine olanak tanıyan bir mobil uygulamadır.
-
-## 🐾 Temel Özellikler
-
-* **Hayvan Listeleme ve Detay Görüntüleme:** Barınaklardaki hayvanları tür, cins, yaş gibi bilgilerle listeleyin ve detaylı profillerini (açıklama, ihtiyaçlar, barınak bilgisi) inceleyin.
-* **Dinamik Bağış Sistemi:**
-    * Belirli hayvanlar için mama, oyuncak, ilaç gibi ürün bağışları veya nakit bağış yapın.
-    * Bağış kalemlerinin fiyatları Firebase'den dinamik olarak çekilir.
-* **Cüzdan Sistemi:** Kullanıcıların uygulama içi cüzdanları aracılığıyla bağış yapmasını sağlayın. Bakiye yükleme ve harcama işlemleri takip edilir.
-* **Sanal Sahiplenme:** Kullanıcıların seçtikleri hayvanları sanal olarak sahiplenmelerine imkan tanıyın.
-* **Barınak Bilgileri:** Hayvanların bulunduğu barınakların iletişim bilgilerine (telefon, e-posta, adres) erişim sağlayın.
-* **Kullanıcı Kimlik Doğrulama:** Firebase Authentication ile güvenli kullanıcı girişi ve kaydı.
-
-## 🛠️ Kullanılan Teknolojiler
+## 🛠️ Technologies Used
 
 * **Frontend:** React Native
-* **Backend & Veritabanı:** Firebase
-    * Firebase Authentication (Kullanıcı kimlik doğrulama)
-    * Firebase Firestore (NoSQL Veritabanı)
-* **Navigasyon:** React Navigation (`@react-navigation/native-stack`)
-* **Firebase Entegrasyonu:** `@react-native-firebase/app`, `@react-native-firebase/auth`, `@react-native-firebase/firestore`
-* **UI Bileşenleri:** `@react-native-picker/picker`
+* **Backend & Database:** Firebase
+  * Firebase Authentication
+  * Firebase Firestore (NoSQL)
+* **Navigation:** React Navigation (`@react-navigation/native-stack`)
+* **Firebase Modules:** `@react-native-firebase/app`, `@react-native-firebase/auth`, `@react-native-firebase/firestore`
+* **UI Components:** `@react-native-picker/picker`
 
-## 🔥 Firebase Kurulumu ve Veri Yapısı
+## 🔥 Firebase Setup & Data Structure
 
-Bu projeyi çalıştırabilmek için kendi Firebase projenizi kurmanız ve aşağıdaki Firestore koleksiyon yapılarını oluşturmanız gerekmektedir:
+To run the app, set up your own Firebase project and create the following Firestore collections:
 
-1.  **`users`**: Kullanıcı bilgilerini ve cüzdan bakiyelerini (`walletBalance`) saklar.
-    * Örnek Alanlar: `displayName`, `email`, `walletBalance` (number)
+1. **`users`** – Stores user info and wallet balance
+   * Example Fields: `displayName`, `email`, `walletBalance` (number)
 
-2.  **`animals`**: Hayvanların detaylı bilgilerini içerir.
-    * Örnek Alanlar: `name`, `type`, `breed`, `age`, `imageUrl`, `photos` (array), `description`, `shelterId`, `shelterName`, `needs` (array), `virtualAdoptersCount` (number)
+2. **`animals`** – Stores animal details
+   * Fields: `name`, `type`, `breed`, `age`, `imageUrl`, `photos` (array), `description`, `shelterId`, `shelterName`, `needs` (array), `virtualAdoptersCount` (number)
 
-3.  **`shelters`**: Barınak bilgilerini saklar.
-    * Örnek Alanlar: `name`, `contactPhone`, `contactEmail`, `address`
+3. **`shelters`** – Shelter info
+   * Fields: `name`, `contactPhone`, `contactEmail`, `address`
 
-4.  **`donationItemPrices`**: Bağışlanabilir ürünlerin birim fiyatlarını saklar. **Bu koleksiyonun adı ve içindeki alan adı önemlidir.**
-    * **Koleksiyon Adı:** `donationItemPrices`
-    * **Doküman ID'leri:** Bağış türünün anahtarı (Örn: `Mama`, `Oyuncak`, `İlaç`)
-    * **Doküman Alanları:**
-        * `name`: (String, isteğe bağlı, örn: "Kaliteli Kedi Maması")
-        * `unitPrice`: (Number, örn: `60`) - **Kod bu alanı `unitPrice` olarak beklemektedir.**
+4. **`donationItemPrices`** – Prices for donation items
+   * Collection name: `donationItemPrices`
+   * Document IDs: Item types (`Food`, `Toy`, `Medicine`)
+   * Fields:
+     * `name` (optional string)
+     * `unitPrice` (required number – e.g., `60`)
 
-5.  **`donations`**: Yapılan tüm bağışların kaydını tutar.
-    * Örnek Alanlar: `userId`, `userName`, `animalId`, `animalName`, `shelterId`, `shelterName`, `donationType`, `amount` (number), `currency` ("TL"), `description`, `quantity` (number, eğer ürün bazlıysa), `donationDate` (timestamp), `status`, `paymentMethod`
+5. **`donations`** – Donation history
+   * Fields: `userId`, `userName`, `animalId`, `animalName`, `shelterId`, `shelterName`, `donationType`, `amount`, `currency` (e.g., "TL"), `description`, `quantity`, `donationDate`, `status`, `paymentMethod`
 
-6.  **`virtualAdoptions`**: Sanal sahiplenme kayıtlarını tutar.
-    * Örnek Alanlar: `userId`, `animalId`, `animalName`, `shelterId`, `adoptionDate` (timestamp), `status`
+6. **`virtualAdoptions`** – Virtual adoption records
+   * Fields: `userId`, `animalId`, `animalName`, `shelterId`, `adoptionDate`, `status`
 
-7.  **`walletTransactions`**: Kullanıcı cüzdanlarındaki tüm para yatırma ve çekme (bağış yapma) işlemlerini kaydeder.
-    * Örnek Alanlar: `userId`, `type` ("deposit" veya "donation"), `amount` (number), `description`, `relatedAnimalId`, `relatedDonationId`, `transactionDate` (timestamp)
+7. **`walletTransactions`** – Tracks wallet deposits and spending
+   * Fields: `userId`, `type` ("deposit" or "donation"), `amount`, `description`, `relatedAnimalId`, `relatedDonationId`, `transactionDate`
 
-## 🚀 Başlarken
+## 🚀 Getting Started
 
-Projeyi yerel makinenizde kurmak ve çalıştırmak için aşağıdaki adımları izleyin:
+### Requirements
 
-### Gereksinimler
+* Node.js (LTS version recommended)
+* npm or Yarn
+* React Native CLI (`npm install -g react-native-cli`)
+* Android Studio (for Android) and/or Xcode (for iOS)
+* A Firebase account and project
 
-* Node.js (LTS sürümü önerilir)
-* npm veya Yarn
-* React Native CLI (`npm install -g react-native-cli` veya `yarn global add react-native-cli`)
-* Android Studio (Android için) ve/veya Xcode (iOS için)
-* Bir Firebase hesabı ve projesi
+### Setup
 
-### Kurulum
+1. **Clone the repository:**
 
-1.  **Depoyu Klonlayın:**
-    ```bash
-    git clone [https://github.com/kullaniciAdiniz/repoAdiniz.git](https://github.com/kullaniciAdiniz/repoAdiniz.git)
-    cd repoAdiniz
-    ```
+```bash
+git clone https://github.com/yourUsername/yourRepo.git
+cd yourRepo
 
-2.  **Bağımlılıkları Yükleyin:**
-    ```bash
-    npm install
-    # veya
-    yarn install
-    ```
+Install dependencies:
 
-3.  **Firebase Proje Kurulumu:**
-    * Firebase konsolunda yeni bir proje oluşturun.
-    * Projenize Android ve/veya iOS uygulaması ekleyin.
-    * **Android için:** `android/app/google-services.json` dosyasını Firebase'den indirin ve projenizdeki ilgili konuma yerleştirin.
-    * **iOS için:** `ios/Runner/GoogleService-Info.plist` dosyasını Firebase'den indirin ve projenizdeki ilgili konuma (Xcode üzerinden) ekleyin. `Podfile`'ı güncelleyin:
-        ```bash
-        cd ios
-        pod install --repo-update
-        cd ..
-        ```
-    * Firebase konsolunda **Authentication**'ı (E-posta/Şifre metoduyla) etkinleştirin.
-    * **Firestore Veritabanı** oluşturun ve yukarıda belirtilen koleksiyon yapılarını manuel olarak veya bir script ile oluşturun (özellikle `donationItemPrices` başlangıç için önemlidir).
-    * Firestore **Kurallarınızı** projenizin ihtiyaçlarına göre ayarlayın (geliştirme için daha esnek, üretim için daha sıkı kurallar).
+bash
+Kopyala
+Düzenle
+npm install
+# or
+yarn install
+Firebase Project Setup:
 
-4.  **Uygulamayı Çalıştırma:**
+Create a Firebase project.
 
-    * **Android için:**
-        ```bash
-        npx react-native run-android
-        # veya
-        yarn android
-        ```
-    * **iOS için:**
-        ```bash
-        npx react-native run-ios
-        # veya
-        yarn ios
-        ```
+Add your Android/iOS app in Firebase.
 
-## 📂 Proje Yapısı (Özet)
+For Android: Download google-services.json and place it in android/app/.
 
+For iOS: Download GoogleService-Info.plist and add it to your Xcode project (ios/Runner/). Then:
+
+bash
+Kopyala
+Düzenle
+cd ios
+pod install --repo-update
+cd ..
+Enable Authentication (email/password).
+
+Create the Firestore database and collections as described above.
+
+Set Firestore rules according to your environment (relaxed for development, strict for production).
+
+Run the app:
+
+Android:
+
+bash
+Kopyala
+Düzenle
+npx react-native run-android
+# or
+yarn android
+iOS:
+
+bash
+Kopyala
+Düzenle
+npx react-native run-ios
+# or
+yarn ios
+📂 Project Structure (Overview)
+bash
+Kopyala
+Düzenle
 /
-├── android/                # Android projesi
-├── ios/                    # iOS projesi
+├── android/                # Android project
+├── ios/                    # iOS project
 ├── src/
-│   ├── assets/             # Resimler, fontlar vb.
-│   ├── components/         # Yeniden kullanılabilir UI bileşenleri
-│   ├── navigation/         # Navigasyon yapısı (AppNavigator.tsx)
-│   ├── screens/            # Ana ekran bileşenleri (AnimalDetailScreen.tsx vb.)
-│   ├── services/           # Firebase servisleri, API çağrıları vb.
-│   ├── store/              # (Eğer varsa) Global state yönetimi (Redux, Zustand vb.)
-│   └── App.tsx             # Ana uygulama bileşeni
-├── ...                     # Diğer yapılandırma dosyaları (babel.config.js, metro.config.js vb.)
-└── README.md
+│   ├── assets/             # Images, fonts, etc.
+│   ├── components/         # Reusable UI components
+│   ├── navigation/         # Navigation (AppNavigator.tsx)
+│   ├── screens/            # Screens (AnimalDetailScreen.tsx, etc.)
+│   ├── services/           # Firebase services, API handlers
+│   ├── store/              # (Optional) State management (Redux, Zustand, etc.)
+│   └── App.tsx             # Main app entry point
+├── .gitignore
+├── README.md
+└── ...
+🤝 Contributing
+Your contributions are welcome! Please read CONTRIBUTING.md (if available) before submitting a pull request.
 
-## 🤝 Katkıda Bulunma
+Fork the repository.
 
-Katkılarınız projeyi daha da geliştirmemize yardımcı olacaktır! Lütfen katkıda bulunmadan önce `CONTRIBUTING.md` (eğer oluşturulursa) dosyasını okuyun.
+Create a new feature/fix branch: git checkout -b feature/new-donation-flow
 
-1.  Bu depoyu fork'layın.
-2.  Yeni bir özellik veya düzeltme için kendi branch'inizi oluşturun (`git checkout -b ozellik/yeni-bagis-akisi`).
-3.  Değişikliklerinizi commit'leyin (`git commit -m 'Yeni bağış akışı eklendi'`).
-4.  Branch'inizi push'layın (`git push origin ozellik/yeni-bagis-akisi`).
-5.  Bir Pull Request (PR) açın.
+Commit your changes: git commit -m 'Add new donation flow'
 
-## 📜 Lisans
+Push to your branch: git push origin feature/new-donation-flow
 
-Bu proje [MIT Lisansı](LISANS.md) altında lisanslanmıştır. (Eğer bir LISANS.md dosyası eklerseniz.)
+Open a Pull Request.
 
----
+📜 License
+This project is licensed under the MIT License. (Include LICENSE.md in your repo.)

@@ -6,8 +6,8 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { launchImageLibrary, ImagePickerResponse, Asset, ImageLibraryOptions } from 'react-native-image-picker';
-import { Picker } from '@react-native-picker/picker'; // Picker import edildi
-import { turkishCities } from '../constants/cities'; // Şehir listesi import edildi
+import { Picker } from '@react-native-picker/picker';
+import { turkishCities } from '../constants/cities';
 
 import { auth, db, storage } from '../api/firebase';
 import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
@@ -22,11 +22,12 @@ interface ProfileData {
   selectedCity: string;
   bio: string;
   profileImageUrl: string;
+  gender?: string;
 }
 
 const EditProfileScreen = ({ navigation }: Props) => {
   const [profileData, setProfileData] = useState<ProfileData>({
-    displayName: '', age: '', selectedCity: '', bio: '', profileImageUrl: '',
+    displayName: '', age: '', selectedCity: '', bio: '', profileImageUrl: '', gender: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,12 +52,14 @@ const EditProfileScreen = ({ navigation }: Props) => {
               selectedCity: data?.selectedCity || data?.location || '',
               bio: data?.bio || '',
               profileImageUrl: data?.profileImageUrl || currentUser.photoURL || '',
+              gender: data?.gender || '',
             });
           } else {
             setProfileData({
               displayName: currentUser.displayName || '',
               age: '', selectedCity: '', bio: '',
               profileImageUrl: currentUser.photoURL || '',
+              gender: '',
             });
           }
         } catch (error) {
@@ -66,7 +69,7 @@ const EditProfileScreen = ({ navigation }: Props) => {
           setLoading(false);
         }
       } else {
-        if(navigation.canGoBack()) navigation.goBack();
+        if (navigation.canGoBack()) navigation.goBack();
       }
     };
     fetchUserProfile();
@@ -83,11 +86,14 @@ const EditProfileScreen = ({ navigation }: Props) => {
       includeBase64: false,
     };
     launchImageLibrary(options, (response: ImagePickerResponse) => {
-      if (response.didCancel) { console.log('User cancelled image picker'); }
-      else if (response.errorCode) { console.log('ImagePicker Error: ', response.errorMessage); Alert.alert('Hata', `Resim seçilirken bir sorun oluştu: ${response.errorMessage}`); }
-      else if (response.assets && response.assets.length > 0 && response.assets[0].uri) {
+      if (response.didCancel) return;
+      if (response.errorCode) {
+        Alert.alert('Hata', `Resim seçilirken bir sorun oluştu: ${response.errorMessage}`);
+      } else if (response.assets && response.assets.length > 0 && response.assets[0].uri) {
         setImageAsset(response.assets[0]);
-      } else { Alert.alert('Hata', 'Resim seçilemedi.'); }
+      } else {
+        Alert.alert('Hata', 'Resim seçilemedi.');
+      }
     });
   };
 
@@ -110,9 +116,9 @@ const EditProfileScreen = ({ navigation }: Props) => {
       setUploading(false);
       return url;
     } catch (e: any) {
-      console.error("Resim yükleme veya URL alma hatası:", e);
+      console.error("Resim yükleme hatası:", e);
       setUploading(false);
-      Alert.alert('Resim Yükleme Hatası', `Profil resmi yüklenirken bir sorun oluştu: ${e.message}`);
+      Alert.alert('Resim Yükleme Hatası', e.message);
       return null;
     }
   };
@@ -126,11 +132,9 @@ const EditProfileScreen = ({ navigation }: Props) => {
     let finalProfileImageUrl = profileData.profileImageUrl;
 
     try {
-      if (imageAsset && imageAsset.uri) { // Sadece yeni bir resim seçilmişse yükle
+      if (imageAsset && imageAsset.uri) {
         const uploadedUrl = await uploadImage();
-        if (uploadedUrl) {
-          finalProfileImageUrl = uploadedUrl;
-        }
+        if (uploadedUrl) finalProfileImageUrl = uploadedUrl;
       }
 
       await currentUser.updateProfile({
@@ -145,13 +149,14 @@ const EditProfileScreen = ({ navigation }: Props) => {
         selectedCity: profileData.selectedCity.trim(),
         bio: profileData.bio.trim(),
         profileImageUrl: finalProfileImageUrl || null,
+        gender: profileData.gender || '',
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
       Alert.alert('Başarılı', 'Profiliniz güncellendi!');
-      if(navigation.canGoBack()) navigation.goBack();
+      if (navigation.canGoBack()) navigation.goBack();
     } catch (error: any) {
-      console.error("Profil güncellenirken hata:", error.message, error.code);
+      console.error("Profil güncelleme hatası:", error);
       Alert.alert('Hata', `Profil güncellenirken bir sorun oluştu: ${error.message}`);
     } finally {
       setSaving(false);
@@ -189,7 +194,7 @@ const EditProfileScreen = ({ navigation }: Props) => {
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={profileData.selectedCity}
-              onValueChange={(itemValue: string) => handleInputChange('selectedCity', itemValue || '')} // itemValue tipi eklendi
+              onValueChange={(itemValue: string) => handleInputChange('selectedCity', itemValue || '')}
               style={styles.picker}
               prompt="Bir şehir seçin"
             >
@@ -200,9 +205,25 @@ const EditProfileScreen = ({ navigation }: Props) => {
             </Picker>
           </View>
 
+          <Text style={styles.label}>Cinsiyet:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={profileData.gender}
+              onValueChange={(itemValue: string) => handleInputChange('gender', itemValue || '')}
+              style={styles.picker}
+              prompt="Cinsiyet seçin"
+            >
+              <Picker.Item label="Cinsiyet Seçiniz..." value="" />
+              <Picker.Item label="Kadın" value="Kadın" />
+              <Picker.Item label="Erkek" value="Erkek" />
+              <Picker.Item label="Belirtmek istemiyorum" value="Belirtmek istemiyorum" />
+            </Picker>
+          </View>
+
           <TextInput style={[styles.input, styles.bioInput]} placeholder="Hakkınızda (Bio)" value={profileData.bio} onChangeText={(value) => handleInputChange('bio', value)} multiline numberOfLines={3} placeholderTextColor="#888" />
+          
           {saving ? (
-            <ActivityIndicator size="large" color="#007bff" style={{ marginTop: 20 }}/>
+            <ActivityIndicator size="large" color="#007bff" style={{ marginTop: 20 }} />
           ) : (
             <TouchableOpacity style={styles.button} onPress={handleSaveProfile} disabled={uploading}>
               <Text style={styles.buttonText}>Kaydet</Text>
@@ -215,19 +236,19 @@ const EditProfileScreen = ({ navigation }: Props) => {
 };
 
 const styles = StyleSheet.create({
-  scrollContainer: { flexGrow: 1, justifyContent: 'center', },
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#f8f9fa', },
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: '#333', },
-  avatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 10, alignSelf: 'center', backgroundColor: '#e0e0e0', },
-  changePhotoText: { textAlign: 'center', color: '#007bff', marginBottom: 20, },
-  input: { width: '100%', height: 50, backgroundColor: '#fff', borderColor: '#ddd', borderWidth: 1, borderRadius: 8, paddingHorizontal: 15, marginBottom: 15, fontSize: 16, color: '#333', },
-  bioInput: { height: 80, textAlignVertical: 'top', },
-  label: { fontSize: 16, color: '#333', marginBottom: 5, alignSelf: 'flex-start'},
-  pickerContainer: { width: '100%', borderColor: '#ddd', borderWidth: 1, borderRadius: 8, marginBottom: 15, backgroundColor: '#fff', },
-  picker: { width: '100%', height: Platform.OS === 'ios' ? 200 : 50, color: '#333', },
-  button: { backgroundColor: '#007bff', paddingVertical: 15, borderRadius: 25, alignItems: 'center', width: '100%', marginTop: 10, },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', },
+  scrollContainer: { flexGrow: 1, justifyContent: 'center' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#f8f9fa' },
+  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: '#333' },
+  avatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 10, alignSelf: 'center', backgroundColor: '#e0e0e0' },
+  changePhotoText: { textAlign: 'center', color: '#007bff', marginBottom: 20 },
+  input: { width: '100%', height: 50, backgroundColor: '#fff', borderColor: '#ddd', borderWidth: 1, borderRadius: 8, paddingHorizontal: 15, marginBottom: 15, fontSize: 16, color: '#333' },
+  bioInput: { height: 80, textAlignVertical: 'top' },
+  label: { fontSize: 16, color: '#333', marginBottom: 5, alignSelf: 'flex-start' },
+  pickerContainer: { width: '100%', borderColor: '#ddd', borderWidth: 1, borderRadius: 8, marginBottom: 15, backgroundColor: '#fff' },
+  picker: { width: '100%', height: Platform.OS === 'ios' ? 200 : 50, color: '#333' },
+  button: { backgroundColor: '#007bff', paddingVertical: 15, borderRadius: 25, alignItems: 'center', width: '100%', marginTop: 10 },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   uploadStatus: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   uploadText: { marginLeft: 10, fontSize: 14, color: '#555' },
 });

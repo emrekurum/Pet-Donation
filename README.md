@@ -69,15 +69,12 @@ To run the app, set up your own Firebase project and create the following Firest
 
 1. **Clone the repository:**
 
-```bash
+
 git clone https://github.com/yourUsername/yourRepo.git
 cd yourRepo
 
 Install dependencies:
 
-bash
-Kopyala
-Düzenle
 npm install
 # or
 yarn install
@@ -91,9 +88,7 @@ For Android: Download google-services.json and place it in android/app/.
 
 For iOS: Download GoogleService-Info.plist and add it to your Xcode project (ios/Runner/). Then:
 
-bash
-Kopyala
-Düzenle
+
 cd ios
 pod install --repo-update
 cd ..
@@ -107,24 +102,17 @@ Run the app:
 
 Android:
 
-bash
-Kopyala
-Düzenle
+
 npx react-native run-android
 # or
 yarn android
 iOS:
 
-bash
-Kopyala
-Düzenle
 npx react-native run-ios
 # or
 yarn ios
 📂 Project Structure (Overview)
-bash
-Kopyala
-Düzenle
+
 /
 ├── android/                # Android project
 ├── ios/                    # iOS project
